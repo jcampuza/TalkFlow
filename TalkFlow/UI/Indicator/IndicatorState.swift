@@ -1,7 +1,6 @@
 import SwiftUI
-import Combine
 
-enum IndicatorState: Equatable {
+enum IndicatorState: Equatable, Sendable {
     case idle
     case recording
     case warning
@@ -53,7 +52,7 @@ enum IndicatorState: Equatable {
 
     var shouldPulse: Bool {
         switch self {
-        case .recording, .warning, .permissionRequired:
+        case .recording:
             return true
         default:
             return false
@@ -92,44 +91,56 @@ enum IndicatorState: Equatable {
     }
 }
 
-final class IndicatorStateManager: ObservableObject {
-    @Published var state: IndicatorState = .idle
+@Observable
+final class IndicatorStateManager: @unchecked Sendable {
+    @MainActor var state: IndicatorState = .idle
 
     private var hideTimer: Timer?
 
+    @MainActor
+    init() {}
+
+    @MainActor
     func showSuccess() {
         state = .success
         scheduleHide()
     }
 
+    @MainActor
     func showError(_ message: String) {
         state = .error(message)
         scheduleHide()
     }
 
+    @MainActor
     func showNoSpeech() {
         state = .noSpeech
         scheduleHide()
     }
 
+    @MainActor
     func showPermissionRequired() {
         hideTimer?.invalidate()
         hideTimer = nil
         state = .permissionRequired
     }
 
+    @MainActor
     func clearPermissionRequired() {
         if state == .permissionRequired {
             state = .idle
         }
     }
 
+    @MainActor
     private func scheduleHide() {
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { [weak self] _ in
-            // Don't hide if we're in a persistent state
-            if self?.state.isPersistent == false {
-                self?.state = .idle
+            Task { @MainActor in
+                // Don't hide if we're in a persistent state
+                if self?.state.isPersistent == false {
+                    self?.state = .idle
+                }
             }
         }
     }

@@ -1,10 +1,10 @@
 import Foundation
 
-protocol TranscriptionService {
+protocol TranscriptionService: Sendable {
     func transcribe(audio: Data) async throws -> TranscriptionResult
 }
 
-enum TranscriptionError: LocalizedError {
+enum TranscriptionError: LocalizedError, Sendable {
     case noAPIKey
     case networkError(String)
     case apiError(String)

@@ -1,28 +1,30 @@
 import SwiftUI
 
 struct StatusIndicatorView: View {
-    @ObservedObject var stateManager: IndicatorStateManager
+    var stateManager: IndicatorStateManager
 
-    @State private var isPulsing = false
-    @State private var isRotating = false
+    @State private var pulseScale: CGFloat = 1.0
+    @State private var pulseOpacity: Double = 0.6
+    @State private var rotationDegrees: Double = 0
 
-    private let size: CGFloat = 56
+    private let size: CGFloat = 44
+    private let iconSize: CGFloat = 20
 
     var body: some View {
         ZStack {
-            // Background circle
+            // Background circle - fixed shadow, no animation dependency
             Circle()
                 .fill(stateManager.state.color.opacity(0.9))
                 .frame(width: size, height: size)
-                .shadow(color: stateManager.state.color.opacity(0.5), radius: isPulsing ? 15 : 8)
+                .shadow(color: stateManager.state.color.opacity(0.5), radius: 8)
 
-            // Pulse effect
-            if stateManager.state.shouldPulse {
+            // Pulse effect - only rendered during recording
+            if stateManager.state == .recording {
                 Circle()
                     .stroke(stateManager.state.color, lineWidth: 2)
                     .frame(width: size, height: size)
-                    .scaleEffect(isPulsing ? 1.5 : 1.0)
-                    .opacity(isPulsing ? 0 : 0.8)
+                    .scaleEffect(pulseScale)
+                    .opacity(pulseOpacity)
             }
 
             // Icon
@@ -30,12 +32,12 @@ struct StatusIndicatorView: View {
                 if stateManager.state == .processing {
                     // Spinning indicator for processing
                     Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.system(size: iconSize, weight: .semibold))
                         .foregroundColor(.white)
-                        .rotationEffect(.degrees(isRotating ? 360 : 0))
+                        .rotationEffect(.degrees(rotationDegrees))
                 } else {
                     Image(systemName: stateManager.state.icon)
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.system(size: iconSize, weight: .semibold))
                         .foregroundColor(.white)
                 }
             }
@@ -47,10 +49,10 @@ struct StatusIndicatorView: View {
                         Spacer()
                         Circle()
                             .fill(Color.yellow)
-                            .frame(width: 16, height: 16)
+                            .frame(width: 14, height: 14)
                             .overlay(
                                 Image(systemName: "exclamationmark")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(.system(size: 8, weight: .bold))
                                     .foregroundColor(.black)
                             )
                     }
@@ -59,14 +61,16 @@ struct StatusIndicatorView: View {
                 .frame(width: size, height: size)
             }
         }
+        .frame(width: size * 1.6, height: size * 1.6)
+        .contentShape(Circle().scale(1.2))
         .onTapGesture {
             handleTap()
         }
         .onChange(of: stateManager.state) { _, newState in
-            updateAnimations(for: newState)
+            handleStateChange(newState)
         }
         .onAppear {
-            updateAnimations(for: stateManager.state)
+            handleStateChange(stateManager.state)
         }
         .help(stateManager.state == .permissionRequired ? "Click to open Accessibility settings" : "")
     }
@@ -97,29 +101,40 @@ struct StatusIndicatorView: View {
         }
     }
 
-    private func updateAnimations(for state: IndicatorState) {
-        // Pulse animation
-        if state.shouldPulse {
-            withAnimation(
-                .easeInOut(duration: state.pulseSpeed)
-                .repeatForever(autoreverses: true)
-            ) {
-                isPulsing = true
-            }
-        } else {
-            isPulsing = false
+    private func handleStateChange(_ state: IndicatorState) {
+        // First, immediately reset all animation states without animation
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            pulseScale = 1.0
+            pulseOpacity = 0.6
+            rotationDegrees = 0
         }
 
-        // Rotation animation for processing
-        if state == .processing {
-            withAnimation(
-                .linear(duration: 1.0)
-                .repeatForever(autoreverses: false)
-            ) {
-                isRotating = true
-            }
-        } else {
-            isRotating = false
+        // Then start appropriate animations for the new state
+        if state == .recording {
+            startPulseAnimation()
+        } else if state == .processing {
+            startRotationAnimation()
+        }
+    }
+
+    private func startPulseAnimation() {
+        withAnimation(
+            .easeInOut(duration: 0.8)
+            .repeatForever(autoreverses: true)
+        ) {
+            pulseScale = 1.4
+            pulseOpacity = 0
+        }
+    }
+
+    private func startRotationAnimation() {
+        withAnimation(
+            .linear(duration: 1.0)
+            .repeatForever(autoreverses: false)
+        ) {
+            rotationDegrees = 360
         }
     }
 }

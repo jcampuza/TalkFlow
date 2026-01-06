@@ -1,39 +1,54 @@
 import Foundation
-import Combine
 
-final class HistorySearcher: ObservableObject {
-    @Published var searchText: String = ""
-    @Published private(set) var searchResults: [TranscriptionRecord] = []
-    @Published private(set) var isSearching = false
+@Observable
+final class HistorySearcher: @unchecked Sendable {
+    @MainActor var searchText: String = "" {
+        didSet {
+            scheduleSearch()
+        }
+    }
+    @MainActor private(set) var searchResults: [TranscriptionRecord] = []
+    @MainActor private(set) var isSearching = false
 
-    private let historyStorage: HistoryStorage
-    private var searchCancellable: AnyCancellable?
+    private var historyStorage: HistoryStorage?
+    private var searchTask: Task<Void, Never>?
+
+    init() {}
 
     init(historyStorage: HistoryStorage) {
         self.historyStorage = historyStorage
-
-        // Debounce search input
-        searchCancellable = $searchText
-            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
-            .removeDuplicates()
-            .sink { [weak self] query in
-                self?.performSearch(query: query)
-            }
     }
 
-    private func performSearch(query: String) {
-        isSearching = true
+    @MainActor
+    func setStorage(_ storage: HistoryStorage) {
+        self.historyStorage = storage
+    }
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let results = self?.historyStorage.search(query: query) ?? []
-
-            DispatchQueue.main.async {
-                self?.searchResults = results
-                self?.isSearching = false
-            }
+    @MainActor
+    private func scheduleSearch() {
+        guard historyStorage != nil else { return }
+        searchTask?.cancel()
+        searchTask = Task { @MainActor in
+            // Debounce
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            await performSearch(query: searchText)
         }
     }
 
+    @MainActor
+    private func performSearch(query: String) async {
+        guard let historyStorage = historyStorage else { return }
+        isSearching = true
+
+        let results = await historyStorage.search(query: query)
+
+        guard !Task.isCancelled else { return }
+        searchResults = results
+        isSearching = false
+    }
+
+    @MainActor
     func clearSearch() {
         searchText = ""
     }

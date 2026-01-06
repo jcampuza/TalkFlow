@@ -1,12 +1,44 @@
 import SwiftUI
 
 struct TranscriptionSettingsView: View {
-    @EnvironmentObject var configurationManager: ConfigurationManager
+    @Environment(\.configurationManager) private var configurationManager
     @State private var apiKey: String = ""
     @State private var isAPIKeyVisible = false
     @State private var showingSaveConfirmation = false
 
     private let keychainService = KeychainService()
+
+    var body: some View {
+        if let manager = configurationManager {
+            TranscriptionSettingsContent(
+                manager: manager,
+                apiKey: $apiKey,
+                isAPIKeyVisible: $isAPIKeyVisible,
+                showingSaveConfirmation: $showingSaveConfirmation,
+                keychainService: keychainService
+            )
+            .onAppear {
+                loadAPIKey()
+            }
+        } else {
+            Text("Configuration not available")
+        }
+    }
+
+    private func loadAPIKey() {
+        if let key = keychainService.getAPIKey() {
+            // Show masked version
+            apiKey = String(repeating: "*", count: min(key.count, 20))
+        }
+    }
+}
+
+private struct TranscriptionSettingsContent: View {
+    @Bindable var manager: ConfigurationManager
+    @Binding var apiKey: String
+    @Binding var isAPIKeyVisible: Bool
+    @Binding var showingSaveConfirmation: Bool
+    let keychainService: KeychainService
 
     var body: some View {
         Form {
@@ -46,11 +78,11 @@ struct TranscriptionSettingsView: View {
             }
 
             Section {
-                Picker("Model", selection: $configurationManager.configuration.whisperModel) {
+                Picker("Model", selection: $manager.configuration.whisperModel) {
                     Text("whisper-1 (Default)").tag("whisper-1")
                 }
 
-                Picker("Language", selection: $configurationManager.configuration.language) {
+                Picker("Language", selection: $manager.configuration.language) {
                     Text("Auto-detect").tag(nil as String?)
                     Divider()
                     Text("English").tag("en" as String?)
@@ -70,7 +102,7 @@ struct TranscriptionSettingsView: View {
             }
 
             Section {
-                Toggle("Strip Punctuation", isOn: $configurationManager.configuration.stripPunctuation)
+                Toggle("Strip Punctuation", isOn: $manager.configuration.stripPunctuation)
 
                 Text("Remove periods, commas, and other punctuation from transcriptions. Capitalization is preserved.")
                     .font(.caption)
@@ -81,18 +113,8 @@ struct TranscriptionSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .onAppear {
-            loadAPIKey()
-        }
         .alert("API Key Saved", isPresented: $showingSaveConfirmation) {
             Button("OK", role: .cancel) {}
-        }
-    }
-
-    private func loadAPIKey() {
-        if let key = keychainService.getAPIKey() {
-            // Show masked version
-            apiKey = String(repeating: "*", count: min(key.count, 20))
         }
     }
 

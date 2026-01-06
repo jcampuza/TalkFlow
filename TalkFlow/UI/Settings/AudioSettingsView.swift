@@ -1,13 +1,34 @@
 import SwiftUI
 
 struct AudioSettingsView: View {
-    @EnvironmentObject var configurationManager: ConfigurationManager
+    @Environment(\.configurationManager) private var configurationManager
     @State private var availableDevices: [AudioDevice] = []
+
+    var body: some View {
+        if let manager = configurationManager {
+            AudioSettingsContent(manager: manager, availableDevices: $availableDevices)
+                .onAppear {
+                    loadDevices(manager: manager)
+                }
+        } else {
+            Text("Configuration not available")
+        }
+    }
+
+    private func loadDevices(manager: ConfigurationManager) {
+        let captureService = AudioCaptureService(configurationManager: manager)
+        availableDevices = captureService.getAvailableInputDevices()
+    }
+}
+
+private struct AudioSettingsContent: View {
+    @Bindable var manager: ConfigurationManager
+    @Binding var availableDevices: [AudioDevice]
 
     var body: some View {
         Form {
             Section {
-                Picker("Input Device", selection: $configurationManager.configuration.inputDeviceUID) {
+                Picker("Input Device", selection: $manager.configuration.inputDeviceUID) {
                     Text("System Default").tag(nil as String?)
 
                     ForEach(availableDevices) { device in
@@ -23,12 +44,12 @@ struct AudioSettingsView: View {
                     HStack {
                         Text("Silence Threshold")
                         Spacer()
-                        Text("\(Int(configurationManager.configuration.silenceThresholdDb)) dB")
+                        Text("\(Int(manager.configuration.silenceThresholdDb)) dB")
                             .foregroundColor(.secondary)
                     }
 
                     Slider(
-                        value: $configurationManager.configuration.silenceThresholdDb,
+                        value: $manager.configuration.silenceThresholdDb,
                         in: -60...(-20),
                         step: 1
                     )
@@ -42,12 +63,12 @@ struct AudioSettingsView: View {
                     HStack {
                         Text("Noise Gate Threshold")
                         Spacer()
-                        Text("\(Int(configurationManager.configuration.noiseGateThresholdDb)) dB")
+                        Text("\(Int(manager.configuration.noiseGateThresholdDb)) dB")
                             .foregroundColor(.secondary)
                     }
 
                     Slider(
-                        value: $configurationManager.configuration.noiseGateThresholdDb,
+                        value: $manager.configuration.noiseGateThresholdDb,
                         in: -70...(-30),
                         step: 1
                     )
@@ -66,7 +87,7 @@ struct AudioSettingsView: View {
 
                     Spacer()
 
-                    Picker("", selection: $configurationManager.configuration.maxRecordingDurationSeconds) {
+                    Picker("", selection: $manager.configuration.maxRecordingDurationSeconds) {
                         Text("1 minute").tag(60)
                         Text("2 minutes (Default)").tag(120)
                         Text("3 minutes").tag(180)
@@ -81,13 +102,5 @@ struct AudioSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .onAppear {
-            loadDevices()
-        }
-    }
-
-    private func loadDevices() {
-        let captureService = AudioCaptureService(configurationManager: configurationManager)
-        availableDevices = captureService.getAvailableInputDevices()
     }
 }

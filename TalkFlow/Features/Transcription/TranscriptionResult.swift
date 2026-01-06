@@ -1,6 +1,6 @@
 import Foundation
 
-struct TranscriptionResult {
+struct TranscriptionResult: Sendable {
     let text: String
     let confidence: Double?
     let language: String?

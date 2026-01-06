@@ -1,8 +1,7 @@
 import Foundation
 import SwiftUI
-import Combine
 
-struct AppConfiguration: Codable {
+struct AppConfiguration: Codable, Sendable {
     // Shortcut
     var triggerShortcut: ShortcutConfiguration = .rightCommand
     var minimumHoldDurationMs: Int = 300
@@ -89,8 +88,9 @@ struct AppConfiguration: Codable {
     }
 }
 
-final class ConfigurationManager: ObservableObject {
-    @Published var configuration: AppConfiguration {
+@Observable
+final class ConfigurationManager: @unchecked Sendable {
+    var configuration: AppConfiguration {
         didSet {
             save()
         }

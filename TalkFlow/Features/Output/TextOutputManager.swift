@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 
-final class TextOutputManager {
+final class TextOutputManager: @unchecked Sendable {
     private let clipboardManager: ClipboardManager
 
     init(clipboardManager: ClipboardManager) {
@@ -26,7 +26,8 @@ final class TextOutputManager {
         insertViaClipboard(text)
 
         // Restore clipboard after a short delay to let paste complete
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
             self?.clipboardManager.restore()
         }
     }

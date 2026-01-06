@@ -3,74 +3,89 @@ import XCTest
 
 final class HistoryStorageTests: XCTestCase {
     var storage: HistoryStorage!
+    var testDatabasePath: String!
 
     override func setUp() {
         super.setUp()
-        storage = HistoryStorage()
-        // Clear all records for clean test
-        storage.deleteAll()
+        // Create a test-specific database path for isolation
+        let tempDir = FileManager.default.temporaryDirectory
+        testDatabasePath = tempDir.appendingPathComponent("test_history_\(UUID().uuidString).sqlite").path
+
+        do {
+            storage = try HistoryStorage(databasePath: testDatabasePath)
+        } catch {
+            XCTFail("Failed to create test storage: \(error)")
+        }
     }
 
     override func tearDown() {
-        storage.deleteAll()
+        // Clean up test database
+        if let path = testDatabasePath {
+            try? FileManager.default.removeItem(atPath: path)
+        }
         storage = nil
+        testDatabasePath = nil
         super.tearDown()
     }
 
-    func testSaveAndFetch() {
+    func testSaveAndFetch() async throws {
         let record = TranscriptionRecord(
             text: "Hello, world!",
             durationMs: 1000,
             confidence: 0.95
         )
 
-        storage.save(record)
+        try await storage.save(record)
 
-        let fetched = storage.fetchAll()
+        let fetched = await storage.fetchAll()
         XCTAssertEqual(fetched.count, 1)
         XCTAssertEqual(fetched.first?.text, "Hello, world!")
     }
 
-    func testDelete() {
+    func testDelete() async throws {
         let record = TranscriptionRecord(text: "To be deleted")
-        storage.save(record)
+        try await storage.save(record)
 
-        XCTAssertEqual(storage.fetchAll().count, 1)
+        var fetched = await storage.fetchAll()
+        XCTAssertEqual(fetched.count, 1)
 
-        storage.delete(record)
-        XCTAssertEqual(storage.fetchAll().count, 0)
+        try await storage.delete(record)
+        fetched = await storage.fetchAll()
+        XCTAssertEqual(fetched.count, 0)
     }
 
-    func testSearch() {
-        storage.save(TranscriptionRecord(text: "The quick brown fox"))
-        storage.save(TranscriptionRecord(text: "jumps over the lazy dog"))
-        storage.save(TranscriptionRecord(text: "Hello world"))
+    func testSearch() async throws {
+        try await storage.save(TranscriptionRecord(text: "The quick brown fox"))
+        try await storage.save(TranscriptionRecord(text: "jumps over the lazy dog"))
+        try await storage.save(TranscriptionRecord(text: "Hello world"))
 
-        let foxResults = storage.search(query: "fox")
+        let foxResults = await storage.search(query: "fox")
         XCTAssertEqual(foxResults.count, 1)
         XCTAssertTrue(foxResults.first?.text.contains("fox") ?? false)
 
-        let theResults = storage.search(query: "the")
+        let theResults = await storage.search(query: "the")
         XCTAssertEqual(theResults.count, 2)
     }
 
-    func testFetchRecent() {
+    func testFetchRecent() async throws {
         for i in 0..<10 {
-            storage.save(TranscriptionRecord(text: "Record \(i)"))
+            try await storage.save(TranscriptionRecord(text: "Record \(i)"))
         }
 
-        let recent = storage.fetchRecent(limit: 5)
+        let recent = await storage.fetchRecent(limit: 5)
         XCTAssertEqual(recent.count, 5)
     }
 
-    func testDeleteAll() {
-        storage.save(TranscriptionRecord(text: "Record 1"))
-        storage.save(TranscriptionRecord(text: "Record 2"))
-        storage.save(TranscriptionRecord(text: "Record 3"))
+    func testDeleteAll() async throws {
+        try await storage.save(TranscriptionRecord(text: "Record 1"))
+        try await storage.save(TranscriptionRecord(text: "Record 2"))
+        try await storage.save(TranscriptionRecord(text: "Record 3"))
 
-        XCTAssertEqual(storage.fetchAll().count, 3)
+        var fetched = await storage.fetchAll()
+        XCTAssertEqual(fetched.count, 3)
 
-        storage.deleteAll()
-        XCTAssertEqual(storage.fetchAll().count, 0)
+        try await storage.deleteAll()
+        fetched = await storage.fetchAll()
+        XCTAssertEqual(fetched.count, 0)
     }
 }

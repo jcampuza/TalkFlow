@@ -5,16 +5,14 @@ struct TalkFlowApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
+        // Menu bar apps should NOT use Window scenes - they auto-open on launch
+        // Main window is created programmatically via AppDelegate.showMainWindow()
+
+        // Settings window for Cmd+, shortcut (doesn't auto-open)
         Settings {
             SettingsWindow()
-                .environmentObject(appDelegate.dependencyContainer.configurationManager)
-                .environmentObject(appDelegate.dependencyContainer.historyStorage)
+                .environment(\.configurationManager, appDelegate.dependencyContainer.configurationManager)
+                .environment(\.historyStorage, appDelegate.dependencyContainer.historyStorage)
         }
-
-        Window("History", id: "history") {
-            HistoryWindow()
-                .environmentObject(appDelegate.dependencyContainer.historyStorage)
-        }
-        .defaultSize(width: 600, height: 500)
     }
 }

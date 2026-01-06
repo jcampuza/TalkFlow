@@ -6,17 +6,22 @@ protocol KeychainServiceProtocol {
     func getAPIKey() -> String?
     func deleteAPIKey()
     func hasAPIKey() -> Bool
+    func migrateIfNeeded()
 }
 
 final class KeychainService: KeychainServiceProtocol {
     private let service = "com.josephcampuzano.TalkFlow"
     private let apiKeyAccount = "openai-api-key"
+    private let migrationKey = "keychain-migration-v1"
 
     func setAPIKey(_ key: String) {
         // Delete existing key first
         deleteAPIKey()
 
-        guard let data = key.data(using: .utf8) else { return }
+        guard let data = key.data(using: .utf8) else {
+            Logger.shared.error("Failed to encode API key data", component: "Keychain")
+            return
+        }
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -33,6 +38,10 @@ final class KeychainService: KeychainServiceProtocol {
         } else {
             Logger.shared.error("Failed to save API key: \(status)", component: "Keychain")
         }
+    }
+
+    func migrateIfNeeded() {
+        // No-op for now - migration not needed with simple approach
     }
 
     func getAPIKey() -> String? {

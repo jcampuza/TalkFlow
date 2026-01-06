@@ -1,7 +1,7 @@
 import Foundation
 import Carbon.HIToolbox
 
-struct ShortcutConfiguration: Codable, Equatable {
+struct ShortcutConfiguration: Codable, Equatable, Sendable {
     var keyCode: UInt16
     var modifiers: UInt64
 

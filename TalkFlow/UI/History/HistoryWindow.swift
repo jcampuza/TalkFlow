@@ -1,11 +1,12 @@
 import SwiftUI
 
 struct HistoryWindow: View {
-    @EnvironmentObject var historyStorage: HistoryStorage
-    @StateObject private var searcher: HistorySearcher = HistorySearcher(historyStorage: HistoryStorage())
+    @Environment(\.historyStorage) private var historyStorage
+    @State private var searcher = HistorySearcher()
     @State private var showingDeleteConfirmation = false
     @State private var recordToDelete: TranscriptionRecord?
     @State private var copiedRecordId: String?
+    @State private var allRecords: [TranscriptionRecord] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,9 +47,11 @@ struct HistoryWindow: View {
             }
         }
         .frame(minWidth: 500, minHeight: 400)
-        .onAppear {
-            // Re-initialize searcher with actual history storage
-            searcher.searchText = ""
+        .task {
+            if let storage = historyStorage {
+                searcher.setStorage(storage)
+                allRecords = await storage.fetchAll()
+            }
         }
         .alert("Delete Transcription?", isPresented: $showingDeleteConfirmation) {
             Button("Cancel", role: .cancel) {
@@ -56,7 +59,12 @@ struct HistoryWindow: View {
             }
             Button("Delete", role: .destructive) {
                 if let record = recordToDelete {
-                    historyStorage.delete(record)
+                    Task {
+                        try? await historyStorage?.delete(record)
+                        if let storage = historyStorage {
+                            allRecords = await storage.fetchAll()
+                        }
+                    }
                     recordToDelete = nil
                 }
             }
@@ -67,7 +75,7 @@ struct HistoryWindow: View {
 
     private var displayedRecords: [TranscriptionRecord] {
         if searcher.searchText.isEmpty {
-            return historyStorage.fetchAll()
+            return allRecords
         } else {
             return searcher.searchResults
         }

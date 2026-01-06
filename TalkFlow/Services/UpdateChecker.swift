@@ -121,12 +121,12 @@ final class UpdateChecker {
     }
 }
 
-enum UpdateStatus {
+enum UpdateStatus: Sendable {
     case upToDate
     case updateAvailable(version: String)
     case checkFailed
 }
 
-enum UpdateCheckError: Error {
+enum UpdateCheckError: Error, Sendable {
     case requestFailed
 }

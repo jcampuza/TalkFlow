@@ -1,14 +1,27 @@
 import Foundation
 import GRDB
-import Combine
 
-final class HistoryStorage: ObservableObject {
+/// Protocol for history storage operations, enabling testability
+protocol HistoryStorageProtocol: AnyObject, Sendable {
+    @MainActor var recentRecords: [TranscriptionRecord] { get }
+    func save(_ record: TranscriptionRecord) async throws
+    func delete(_ record: TranscriptionRecord) async throws
+    func deleteAll() async throws
+    func fetchAll() async -> [TranscriptionRecord]
+    func fetchRecent(limit: Int) async -> [TranscriptionRecord]
+    func search(query: String) async -> [TranscriptionRecord]
+    func getRecord(id: String) async -> TranscriptionRecord?
+}
+
+@Observable
+final class HistoryStorage: HistoryStorageProtocol, @unchecked Sendable {
     private var dbQueue: DatabaseQueue?
 
-    @Published private(set) var recentRecords: [TranscriptionRecord] = []
+    @MainActor private(set) var recentRecords: [TranscriptionRecord] = []
 
     private let databaseURL: URL
 
+    /// Default production initializer using Application Support directory
     init() {
         let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let talkFlowDir = appSupportURL.appendingPathComponent("TalkFlow", isDirectory: true)
@@ -20,10 +33,34 @@ final class HistoryStorage: ObservableObject {
 
         do {
             try setupDatabase()
-            loadRecentRecords()
+            Task { @MainActor in
+                await self.loadRecentRecords()
+            }
             Logger.shared.info("History storage initialized at \(databaseURL.path)", component: "HistoryStorage")
         } catch {
             Logger.shared.error("Failed to initialize database: \(error)", component: "HistoryStorage")
+        }
+    }
+
+    /// Initializer for testing with a custom database path
+    /// Pass nil or ":memory:" for an in-memory database (useful for isolated tests)
+    init(databasePath: String) throws {
+        if databasePath == ":memory:" {
+            // In-memory database for testing
+            self.databaseURL = URL(fileURLWithPath: databasePath)
+        } else {
+            self.databaseURL = URL(fileURLWithPath: databasePath)
+
+            // Ensure parent directory exists
+            let parentDir = databaseURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
+        }
+
+        try setupDatabase()
+        // For testing initializer, load synchronously
+        let records = fetchRecentSync()
+        Task { @MainActor in
+            self.recentRecords = records
         }
     }
 
@@ -69,45 +106,33 @@ final class HistoryStorage: ObservableObject {
         }
     }
 
-    func save(_ record: TranscriptionRecord) {
-        do {
-            try dbQueue?.write { db in
-                try record.insert(db)
-            }
-            loadRecentRecords()
-            Logger.shared.debug("Saved transcription record: \(record.id)", component: "HistoryStorage")
-        } catch {
-            Logger.shared.error("Failed to save record: \(error)", component: "HistoryStorage")
+    func save(_ record: TranscriptionRecord) async throws {
+        try await dbQueue?.write { db in
+            try record.insert(db)
         }
+        await loadRecentRecords()
+        Logger.shared.debug("Saved transcription record: \(record.id)", component: "HistoryStorage")
     }
 
-    func delete(_ record: TranscriptionRecord) {
-        do {
-            try dbQueue?.write { db in
-                try record.delete(db)
-            }
-            loadRecentRecords()
-            Logger.shared.debug("Deleted transcription record: \(record.id)", component: "HistoryStorage")
-        } catch {
-            Logger.shared.error("Failed to delete record: \(error)", component: "HistoryStorage")
+    func delete(_ record: TranscriptionRecord) async throws {
+        _ = try await dbQueue?.write { db in
+            try record.delete(db)
         }
+        await loadRecentRecords()
+        Logger.shared.debug("Deleted transcription record: \(record.id)", component: "HistoryStorage")
     }
 
-    func deleteAll() {
-        do {
-            try dbQueue?.write { db in
-                try TranscriptionRecord.deleteAll(db)
-            }
-            loadRecentRecords()
-            Logger.shared.info("Deleted all transcription records", component: "HistoryStorage")
-        } catch {
-            Logger.shared.error("Failed to delete all records: \(error)", component: "HistoryStorage")
+    func deleteAll() async throws {
+        _ = try await dbQueue?.write { db in
+            try TranscriptionRecord.deleteAll(db)
         }
+        await loadRecentRecords()
+        Logger.shared.info("Deleted all transcription records", component: "HistoryStorage")
     }
 
-    func fetchAll() -> [TranscriptionRecord] {
+    func fetchAll() async -> [TranscriptionRecord] {
         do {
-            return try dbQueue?.read { db in
+            return try await dbQueue?.read { db in
                 try TranscriptionRecord
                     .order(Column("timestamp").desc)
                     .fetchAll(db)
@@ -118,9 +143,9 @@ final class HistoryStorage: ObservableObject {
         }
     }
 
-    func fetchRecent(limit: Int = 5) -> [TranscriptionRecord] {
+    func fetchRecent(limit: Int = 5) async -> [TranscriptionRecord] {
         do {
-            return try dbQueue?.read { db in
+            return try await dbQueue?.read { db in
                 try TranscriptionRecord
                     .order(Column("timestamp").desc)
                     .limit(limit)
@@ -132,11 +157,11 @@ final class HistoryStorage: ObservableObject {
         }
     }
 
-    func search(query: String) -> [TranscriptionRecord] {
-        guard !query.isEmpty else { return fetchAll() }
+    func search(query: String) async -> [TranscriptionRecord] {
+        guard !query.isEmpty else { return await fetchAll() }
 
         do {
-            return try dbQueue?.read { db in
+            return try await dbQueue?.read { db in
                 // Use FTS5 for full-text search
                 let pattern = query
                     .split(separator: " ")
@@ -148,13 +173,14 @@ final class HistoryStorage: ObservableObject {
         } catch {
             Logger.shared.error("Search failed: \(error)", component: "HistoryStorage")
             // Fallback to simple LIKE search
-            return fetchAll().filter { $0.text.localizedCaseInsensitiveContains(query) }
+            let allRecords = await fetchAll()
+            return allRecords.filter { $0.text.localizedCaseInsensitiveContains(query) }
         }
     }
 
-    func getRecord(id: String) -> TranscriptionRecord? {
+    func getRecord(id: String) async -> TranscriptionRecord? {
         do {
-            return try dbQueue?.read { db in
+            return try await dbQueue?.read { db in
                 try TranscriptionRecord.fetchOne(db, key: id)
             }
         } catch {
@@ -163,9 +189,23 @@ final class HistoryStorage: ObservableObject {
         }
     }
 
-    private func loadRecentRecords() {
-        DispatchQueue.main.async { [weak self] in
-            self?.recentRecords = self?.fetchRecent() ?? []
+    @MainActor
+    private func loadRecentRecords() async {
+        recentRecords = await fetchRecent()
+    }
+
+    // Synchronous version for initialization
+    private func fetchRecentSync(limit: Int = 5) -> [TranscriptionRecord] {
+        do {
+            return try dbQueue?.read { db in
+                try TranscriptionRecord
+                    .order(Column("timestamp").desc)
+                    .limit(limit)
+                    .fetchAll(db)
+            } ?? []
+        } catch {
+            Logger.shared.error("Failed to fetch recent records: \(error)", component: "HistoryStorage")
+            return []
         }
     }
 }

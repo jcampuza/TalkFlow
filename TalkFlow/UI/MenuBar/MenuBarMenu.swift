@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MenuBarMenu: View {
-    @EnvironmentObject var historyStorage: HistoryStorage
+    @Environment(\.historyStorage) private var historyStorage
 
     let onShowHistory: () -> Void
     let onShowSettings: () -> Void
@@ -9,12 +9,12 @@ struct MenuBarMenu: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if !historyStorage.recentRecords.isEmpty {
+            if let storage = historyStorage, !storage.recentRecords.isEmpty {
                 Text("Recent Transcriptions")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                ForEach(historyStorage.recentRecords.prefix(5)) { record in
+                ForEach(storage.recentRecords.prefix(5)) { record in
                     Button(action: {
                         copyToClipboard(record.text)
                     }) {

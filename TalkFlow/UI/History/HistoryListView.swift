@@ -1,13 +1,19 @@
 import SwiftUI
 
 struct HistoryListView: View {
-    @EnvironmentObject var historyStorage: HistoryStorage
+    @Environment(\.historyStorage) private var historyStorage
     @Binding var selectedRecord: TranscriptionRecord?
+    @State private var records: [TranscriptionRecord] = []
 
     var body: some View {
-        List(historyStorage.fetchAll(), selection: $selectedRecord) { record in
+        List(records, selection: $selectedRecord) { record in
             HistoryListRowView(record: record)
                 .tag(record)
+        }
+        .task {
+            if let storage = historyStorage {
+                records = await storage.fetchAll()
+            }
         }
     }
 }

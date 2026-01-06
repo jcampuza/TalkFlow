@@ -1,26 +1,21 @@
 import AppKit
-import Combine
 
+@MainActor
 final class MenuBarController: NSObject {
     private let statusItem: NSStatusItem
     private let historyStorage: HistoryStorage
-    private let onShowHistory: () -> Void
-    private let onShowSettings: () -> Void
-    private let onQuit: () -> Void
-
-    private var cancellables = Set<AnyCancellable>()
+    private let onOpenTalkFlow: @MainActor () -> Void
+    private let onQuit: @MainActor () -> Void
 
     init(
         statusItem: NSStatusItem,
         historyStorage: HistoryStorage,
-        onShowHistory: @escaping () -> Void,
-        onShowSettings: @escaping () -> Void,
-        onQuit: @escaping () -> Void
+        onOpenTalkFlow: @escaping @MainActor () -> Void,
+        onQuit: @escaping @MainActor () -> Void
     ) {
         self.statusItem = statusItem
         self.historyStorage = historyStorage
-        self.onShowHistory = onShowHistory
-        self.onShowSettings = onShowSettings
+        self.onOpenTalkFlow = onOpenTalkFlow
         self.onQuit = onQuit
 
         super.init()
@@ -34,11 +29,14 @@ final class MenuBarController: NSObject {
     }
 
     private func observeHistory() {
-        historyStorage.$recentRecords
-            .sink { [weak self] _ in
+        withObservationTracking {
+            _ = historyStorage.recentRecords
+        } onChange: { [weak self] in
+            Task { @MainActor in
                 self?.updateMenu()
+                self?.observeHistory()  // Re-register for future changes
             }
-            .store(in: &cancellables)
+        }
     }
 
     private func updateMenu() {
@@ -83,26 +81,14 @@ final class MenuBarController: NSObject {
             menu.addItem(NSMenuItem.separator())
         }
 
-        // View All History
-        let historyItem = NSMenuItem(
-            title: "View All History...",
-            action: #selector(showHistory),
-            keyEquivalent: "h"
+        // Open TalkFlow (main window with all features)
+        let openItem = NSMenuItem(
+            title: "Open TalkFlow...",
+            action: #selector(openTalkFlow),
+            keyEquivalent: "o"
         )
-        historyItem.keyEquivalentModifierMask = [.command, .shift]
-        historyItem.target = self
-        menu.addItem(historyItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Settings
-        let settingsItem = NSMenuItem(
-            title: "Settings...",
-            action: #selector(showSettings),
-            keyEquivalent: ","
-        )
-        settingsItem.target = self
-        menu.addItem(settingsItem)
+        openItem.target = self
+        menu.addItem(openItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -130,12 +116,8 @@ final class MenuBarController: NSObject {
         Logger.shared.debug("Copied transcription to clipboard", component: "MenuBar")
     }
 
-    @objc private func showHistory() {
-        onShowHistory()
-    }
-
-    @objc private func showSettings() {
-        onShowSettings()
+    @objc private func openTalkFlow() {
+        onOpenTalkFlow()
     }
 
     @objc private func quit() {
@@ -148,7 +130,8 @@ final class MenuBarController: NSObject {
             let originalImage = button.image
             button.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Copied")
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1))
                 button.image = originalImage
             }
         }

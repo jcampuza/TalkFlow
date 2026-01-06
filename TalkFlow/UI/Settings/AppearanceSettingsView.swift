@@ -1,12 +1,24 @@
 import SwiftUI
 
 struct AppearanceSettingsView: View {
-    @EnvironmentObject var configurationManager: ConfigurationManager
+    @Environment(\.configurationManager) private var configurationManager
+
+    var body: some View {
+        if let manager = configurationManager {
+            AppearanceSettingsContent(manager: manager)
+        } else {
+            Text("Configuration not available")
+        }
+    }
+}
+
+private struct AppearanceSettingsContent: View {
+    @Bindable var manager: ConfigurationManager
 
     var body: some View {
         Form {
             Section {
-                Toggle("Show Indicator When Idle", isOn: $configurationManager.configuration.indicatorVisibleWhenIdle)
+                Toggle("Show Indicator When Idle", isOn: $manager.configuration.indicatorVisibleWhenIdle)
 
                 Text("When enabled, the status indicator will always be visible. When disabled, it only appears during recording and processing.")
                     .font(.caption)
@@ -19,7 +31,7 @@ struct AppearanceSettingsView: View {
                 HStack {
                     Text("Indicator Position")
                     Spacer()
-                    if configurationManager.configuration.indicatorPosition != nil {
+                    if manager.configuration.indicatorPosition != nil {
                         Text("Custom")
                             .foregroundColor(.secondary)
                     } else {
@@ -29,11 +41,11 @@ struct AppearanceSettingsView: View {
                 }
 
                 Button("Reset Position to Default") {
-                    var config = configurationManager.configuration
+                    var config = manager.configuration
                     config.indicatorPosition = nil
-                    configurationManager.configuration = config
+                    manager.configuration = config
                 }
-                .disabled(configurationManager.configuration.indicatorPosition == nil)
+                .disabled(manager.configuration.indicatorPosition == nil)
 
                 Text("Drag the indicator to reposition it. The position is saved automatically.")
                     .font(.caption)

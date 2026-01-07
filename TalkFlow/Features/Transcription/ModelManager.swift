@@ -1,5 +1,5 @@
 import Foundation
-import WhisperKit
+@preconcurrency import WhisperKit
 
 /// Represents a local Whisper model that can be downloaded
 struct LocalWhisperModel: Identifiable, Sendable {

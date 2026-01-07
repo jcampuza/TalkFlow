@@ -33,7 +33,10 @@ let package = Package(
         .testTarget(
             name: "TalkFlowTests",
             dependencies: ["TalkFlow"],
-            path: "TalkFlowTests"
+            path: "TalkFlowTests",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
         )
     ]
 )

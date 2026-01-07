@@ -6,7 +6,6 @@ final class OnboardingManagerTests: XCTestCase {
     var onboardingManager: OnboardingManager!
 
     override func setUp() async throws {
-        try await super.setUp()
         // Clear UserDefaults for clean test state
         UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
         onboardingManager = OnboardingManager()
@@ -15,7 +14,6 @@ final class OnboardingManagerTests: XCTestCase {
     override func tearDown() async throws {
         UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
         onboardingManager = nil
-        try await super.tearDown()
     }
 
     // MARK: - Initial State Tests

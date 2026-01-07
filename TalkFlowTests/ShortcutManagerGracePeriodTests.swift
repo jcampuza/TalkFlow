@@ -255,7 +255,6 @@ final class ShortcutManagerGracePeriodTests: XCTestCase {
     var shortcutManager: TestableShortcutManager!
 
     override func setUp() async throws {
-        try await super.setUp()
         configurationManager = ConfigurationManager()
         // Use very short durations for fast tests
         configurationManager.configuration.minimumHoldDurationMs = 50
@@ -287,7 +286,6 @@ final class ShortcutManagerGracePeriodTests: XCTestCase {
         textOutputManager = nil
         historyStorage = nil
         indicatorStateManager = nil
-        try await super.tearDown()
     }
 
     // MARK: - Basic Grace Period Tests

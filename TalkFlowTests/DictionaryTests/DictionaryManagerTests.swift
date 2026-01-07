@@ -7,7 +7,6 @@ final class DictionaryManagerTests: XCTestCase {
     var manager: DictionaryManager!
 
     override func setUp() async throws {
-        try await super.setUp()
         mockStorage = MockDictionaryStorage()
         manager = DictionaryManager(storage: mockStorage)
     }
@@ -15,7 +14,6 @@ final class DictionaryManagerTests: XCTestCase {
     override func tearDown() async throws {
         mockStorage = nil
         manager = nil
-        try await super.tearDown()
     }
 
     // MARK: - Add Term Tests

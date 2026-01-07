@@ -6,6 +6,8 @@ struct TranscriptionSettingsView: View {
     @State private var apiKey: String = ""
     @State private var isAPIKeyVisible = false
     @State private var showingSaveConfirmation = false
+    @State private var hasStoredKey = false
+    @State private var hasLoadedActualKey = false
 
     private let keychainService = KeychainService()
 
@@ -17,10 +19,12 @@ struct TranscriptionSettingsView: View {
                 apiKey: $apiKey,
                 isAPIKeyVisible: $isAPIKeyVisible,
                 showingSaveConfirmation: $showingSaveConfirmation,
+                hasStoredKey: $hasStoredKey,
+                hasLoadedActualKey: $hasLoadedActualKey,
                 keychainService: keychainService
             )
             .onAppear {
-                loadAPIKey()
+                checkForStoredKey()
             }
         } else {
             Text("Configuration not available")
@@ -28,9 +32,12 @@ struct TranscriptionSettingsView: View {
         }
     }
 
-    private func loadAPIKey() {
-        if let key = keychainService.getAPIKey() {
-            apiKey = String(repeating: "*", count: min(key.count, 20))
+    /// Check if an API key exists without triggering Keychain permission dialog
+    private func checkForStoredKey() {
+        hasStoredKey = keychainService.hasAPIKeyWithoutFetch()
+        if hasStoredKey && !hasLoadedActualKey {
+            // Show placeholder asterisks without actually loading the key
+            apiKey = String(repeating: "•", count: 20)
         }
     }
 }
@@ -41,6 +48,8 @@ private struct TranscriptionSettingsContent: View {
     @Binding var apiKey: String
     @Binding var isAPIKeyVisible: Bool
     @Binding var showingSaveConfirmation: Bool
+    @Binding var hasStoredKey: Bool
+    @Binding var hasLoadedActualKey: Bool
     let keychainService: KeychainService
 
     @State private var showDownloadSuccessAlert = false
@@ -65,6 +74,7 @@ private struct TranscriptionSettingsContent: View {
                         Spacer()
                         Toggle("", isOn: localModeBinding)
                             .labelsHidden()
+                            .tint(DesignConstants.accentColor)
                             .disabled(modelManager.isDownloading)
                     }
 
@@ -100,7 +110,7 @@ private struct TranscriptionSettingsContent: View {
                                     .foregroundColor(DesignConstants.primaryText)
                             }
 
-                            Button(action: { isAPIKeyVisible.toggle() }) {
+                            Button(action: { toggleAPIKeyVisibility() }) {
                                 Image(systemName: isAPIKeyVisible ? "eye.slash" : "eye")
                                     .foregroundColor(DesignConstants.secondaryText)
                             }
@@ -176,6 +186,7 @@ private struct TranscriptionSettingsContent: View {
                         Spacer()
                         Toggle("", isOn: $manager.configuration.stripPunctuation)
                             .labelsHidden()
+                            .tint(DesignConstants.accentColor)
                     }
 
                     Text("Remove periods, commas, and other punctuation from transcriptions. Capitalization is preserved.")
@@ -354,14 +365,32 @@ private struct TranscriptionSettingsContent: View {
 
     // MARK: - Actions
 
+    private func toggleAPIKeyVisibility() {
+        if !isAPIKeyVisible {
+            // User wants to reveal the key - load from Keychain if not already loaded
+            if hasStoredKey && !hasLoadedActualKey {
+                if let key = keychainService.getAPIKey() {
+                    apiKey = key
+                    hasLoadedActualKey = true
+                }
+            }
+        }
+        isAPIKeyVisible.toggle()
+    }
+
     private func saveAPIKey() {
-        if apiKey.allSatisfy({ $0 == "*" }) {
+        // Don't save if it's just placeholder dots
+        if apiKey.allSatisfy({ $0 == "•" || $0 == "*" }) {
             return
         }
 
         keychainService.setAPIKey(apiKey)
         showingSaveConfirmation = true
-        apiKey = String(repeating: "*", count: min(apiKey.count, 20))
+        hasStoredKey = true
+        hasLoadedActualKey = true
+        // Mask the key after saving
+        apiKey = String(repeating: "•", count: min(apiKey.count, 20))
+        isAPIKeyVisible = false
     }
 
     private func downloadModel(_ modelId: String) {

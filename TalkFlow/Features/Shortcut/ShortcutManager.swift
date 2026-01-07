@@ -125,15 +125,20 @@ final class ShortcutManager: KeyEventMonitorDelegate {
 
         keyDownTime = Date()
 
-        // Start hold timer
-        let holdDuration = Double(configurationManager.configuration.minimumHoldDurationMs) / 1000.0
-        holdTimer = Timer.scheduledTimer(withTimeInterval: holdDuration, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                self?.startRecording()
+        // Start recording immediately if instant mode, otherwise use hold timer
+        let holdDurationMs = configurationManager.configuration.minimumHoldDurationMs
+        if holdDurationMs == 0 {
+            startRecording()
+            Logger.shared.debug("Key down detected, instant recording started", component: "ShortcutManager")
+        } else {
+            let holdDuration = Double(holdDurationMs) / 1000.0
+            holdTimer = Timer.scheduledTimer(withTimeInterval: holdDuration, repeats: false) { [weak self] _ in
+                Task { @MainActor in
+                    self?.startRecording()
+                }
             }
+            Logger.shared.debug("Key down detected, starting hold timer", component: "ShortcutManager")
         }
-
-        Logger.shared.debug("Key down detected, starting hold timer", component: "ShortcutManager")
     }
 
     func keyEventMonitor(_ monitor: KeyEventMonitor, didDetectKeyUp keyCode: UInt16, flags: CGEventFlags) {
@@ -297,6 +302,16 @@ final class ShortcutManager: KeyEventMonitorDelegate {
                 var finalText = transcriptionResult.text
                 if config.stripPunctuation {
                     finalText = self.stripPunctuation(from: finalText)
+                }
+
+                // Skip empty transcriptions
+                if finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    await MainActor.run {
+                        indicator.showNoSpeech()
+                        self.isProcessing = false
+                    }
+                    Logger.shared.info("Transcription returned empty text, skipping", component: "ShortcutManager")
+                    return
                 }
 
                 await MainActor.run {

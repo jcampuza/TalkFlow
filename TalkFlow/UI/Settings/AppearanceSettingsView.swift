@@ -27,6 +27,7 @@ private struct AppearanceSettingsContent: View {
                         Spacer()
                         Toggle("", isOn: $manager.configuration.indicatorVisibleWhenIdle)
                             .labelsHidden()
+                            .tint(DesignConstants.accentColor)
                     }
 
                     Text("When enabled, the status indicator will always be visible. When disabled, it only appears during recording and processing.")

@@ -20,6 +20,10 @@ final class MockKeychainService: KeychainServiceProtocol {
         return storedAPIKey != nil
     }
 
+    func hasAPIKeyWithoutFetch() -> Bool {
+        return storedAPIKey != nil
+    }
+
     func migrateIfNeeded() {
         // No-op for mock
     }

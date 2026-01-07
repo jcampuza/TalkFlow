@@ -6,6 +6,7 @@ protocol KeychainServiceProtocol {
     func getAPIKey() -> String?
     func deleteAPIKey()
     func hasAPIKey() -> Bool
+    func hasAPIKeyWithoutFetch() -> Bool
     func migrateIfNeeded()
 }
 
@@ -81,5 +82,23 @@ final class KeychainService: KeychainServiceProtocol {
 
     func hasAPIKey() -> Bool {
         return getAPIKey() != nil
+    }
+
+    /// Check if an API key exists without retrieving its value.
+    /// This avoids triggering the Keychain permission dialog by only querying
+    /// for attributes rather than the actual data.
+    func hasAPIKeyWithoutFetch() -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: apiKeyAccount,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        return status == errSecSuccess
     }
 }

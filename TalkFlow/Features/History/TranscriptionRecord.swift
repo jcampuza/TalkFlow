@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-struct TranscriptionRecord: Codable, Identifiable, Hashable, FetchableRecord, PersistableRecord {
+struct TranscriptionRecord: Codable, Identifiable, Hashable, FetchableRecord, PersistableRecord, Sendable {
     var id: String
     var text: String
     var timestamp: Date

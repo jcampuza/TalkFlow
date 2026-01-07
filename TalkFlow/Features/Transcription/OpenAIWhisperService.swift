@@ -1,15 +1,17 @@
 import Foundation
 
-final class OpenAIWhisperService: TranscriptionService {
+final class OpenAIWhisperService: TranscriptionService, @unchecked Sendable {
     private let keychainService: KeychainServiceProtocol
     private let configurationManager: ConfigurationManager
+    private let dictionaryManager: DictionaryManager?
 
     private let baseURL = URL(string: "https://api.openai.com/v1/audio/transcriptions")!
     private let maxRetries = 3
 
-    init(keychainService: KeychainServiceProtocol, configurationManager: ConfigurationManager) {
+    init(keychainService: KeychainServiceProtocol, configurationManager: ConfigurationManager, dictionaryManager: DictionaryManager? = nil) {
         self.keychainService = keychainService
         self.configurationManager = configurationManager
+        self.dictionaryManager = dictionaryManager
     }
 
     func transcribe(audio: Data) async throws -> TranscriptionResult {
@@ -88,6 +90,17 @@ final class OpenAIWhisperService: TranscriptionService {
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n".data(using: .utf8)!)
         body.append("verbose_json\r\n".data(using: .utf8)!)
+
+        // Add dictionary prompt if available
+        if let manager = dictionaryManager {
+            let prompt = await MainActor.run { manager.buildPrompt() }
+            if !prompt.isEmpty {
+                body.append("--\(boundary)\r\n".data(using: .utf8)!)
+                body.append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n".data(using: .utf8)!)
+                body.append("\(prompt)\r\n".data(using: .utf8)!)
+                Logger.shared.debug("Including dictionary prompt in transcription request", component: "WhisperService")
+            }
+        }
 
         // Close boundary
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)

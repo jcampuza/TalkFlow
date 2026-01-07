@@ -1,10 +1,10 @@
-// swift-tools-version:5.9
+// swift-tools-version:6.0
 import PackageDescription
 
 let package = Package(
     name: "TalkFlow",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     products: [
         .executable(name: "TalkFlow", targets: ["TalkFlow"])
@@ -25,12 +25,18 @@ let package = Package(
             ],
             resources: [
                 .process("Resources/Assets.xcassets")
+            ],
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
         .testTarget(
             name: "TalkFlowTests",
             dependencies: ["TalkFlow"],
-            path: "TalkFlowTests"
+            path: "TalkFlowTests",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
         )
     ]
 )

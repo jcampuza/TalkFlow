@@ -5,16 +5,12 @@ struct TalkFlowApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        Settings {
-            SettingsWindow()
-                .environmentObject(appDelegate.dependencyContainer.configurationManager)
-                .environmentObject(appDelegate.dependencyContainer.historyStorage)
-        }
+        // Menu bar app - main window is created programmatically via AppDelegate.showMainWindow()
+        // Settings is integrated into the main window sidebar
 
-        Window("History", id: "history") {
-            HistoryWindow()
-                .environmentObject(appDelegate.dependencyContainer.historyStorage)
+        // Empty Settings scene to satisfy SwiftUI but we handle Cmd+, in AppDelegate
+        Settings {
+            EmptyView()
         }
-        .defaultSize(width: 600, height: 500)
     }
 }

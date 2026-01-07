@@ -1,13 +1,12 @@
 import SwiftUI
 import AppKit
-import Combine
 
+@MainActor
 final class StatusIndicatorWindow: NSObject {
     private var window: NSWindow?
     private var stateManager: IndicatorStateManager
     private var configurationManager: ConfigurationManager
-
-    private var cancellables = Set<AnyCancellable>()
+    nonisolated(unsafe) private var windowMoveObserver: NSObjectProtocol?
 
     init(stateManager: IndicatorStateManager, configurationManager: ConfigurationManager) {
         self.stateManager = stateManager
@@ -16,13 +15,35 @@ final class StatusIndicatorWindow: NSObject {
         super.init()
 
         setupWindow()
-        observeState()
+        setupObservers()
+        setupWindowMoveObserver()
+    }
+
+    deinit {
+        if let observer = windowMoveObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    private func setupWindowMoveObserver() {
+        guard let window = window else { return }
+        windowMoveObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.savePosition()
+            }
+        }
     }
 
     private func setupWindow() {
         let contentView = StatusIndicatorView(stateManager: stateManager)
 
         let hostingController = NSHostingController(rootView: contentView)
+        hostingController.view.wantsLayer = true
+        hostingController.view.layer?.backgroundColor = .clear
 
         let window = NSWindow(contentViewController: hostingController)
         window.styleMask = [.borderless]
@@ -36,34 +57,56 @@ final class StatusIndicatorWindow: NSObject {
         // Make window draggable
         window.isMovableByWindowBackground = true
 
-        // Set initial position
-        positionWindow(window)
-
         self.window = window
+
+        // Defer initial positioning until next run loop to ensure SwiftUI has laid out the view
+        // and window has its proper size
+        Task { @MainActor [weak self] in
+            guard let self = self, let window = self.window else { return }
+            // Use positionWindowOnCursorScreen which has proper bounds checking
+            self.positionWindowOnCursorScreen(window)
+            // Set initial visibility based on current configuration
+            self.updateVisibility(for: self.stateManager.state)
+        }
     }
 
-    private func observeState() {
-        stateManager.$state
-            .sink { [weak self] state in
-                self?.updateVisibility(for: state)
+    private func setupObservers() {
+        // Use withObservationTracking for @Observable objects
+        withObservationTracking {
+            // Access the properties we want to track
+            _ = stateManager.state
+            _ = configurationManager.configuration.indicatorVisibleWhenIdle
+        } onChange: { [weak self] in
+            // This closure is called when any tracked property changes
+            // Schedule on MainActor and re-register for future changes
+            Task { @MainActor in
+                guard let self else { return }
+                self.updateVisibility(for: self.stateManager.state)
+                self.setupObservers()  // Re-register for future changes
             }
-            .store(in: &cancellables)
+        }
     }
 
+    @MainActor
     private func updateVisibility(for state: IndicatorState) {
         guard let window = window else { return }
 
         let showWhenIdle = configurationManager.configuration.indicatorVisibleWhenIdle
+        let wasVisible = window.isVisible
 
         // Always show for persistent states (like permissionRequired)
         if state.isPersistent {
-            positionWindowOnCursorScreen(window)
+            if !wasVisible {
+                positionWindowOnCursorScreen(window)
+            }
             window.orderFrontRegardless()
         } else if state == .idle && !showWhenIdle {
             window.orderOut(nil)
         } else {
-            // Position on screen with cursor
-            positionWindowOnCursorScreen(window)
+            // Only reposition if window wasn't already visible
+            if !wasVisible {
+                positionWindowOnCursorScreen(window)
+            }
             window.orderFrontRegardless()
         }
     }
@@ -98,22 +141,18 @@ final class StatusIndicatorWindow: NSObject {
 
         guard let screen = targetScreen else { return }
 
+        let windowSize = window.frame.size
+
         // Check if we have a saved position
         if let savedPosition = configurationManager.configuration.indicatorPosition {
-            // Adjust position to be relative to current screen
-            let x = screen.visibleFrame.maxX - (NSScreen.main?.visibleFrame.maxX ?? 0 - savedPosition.x)
-            let y = savedPosition.y
-
-            // Ensure window stays on screen
-            let windowSize = window.frame.size
-            let adjustedX = min(max(x, screen.visibleFrame.minX), screen.visibleFrame.maxX - windowSize.width)
-            let adjustedY = min(max(y, screen.visibleFrame.minY), screen.visibleFrame.maxY - windowSize.height)
+            // Use saved position but ensure it stays within screen bounds
+            let adjustedX = min(max(savedPosition.x, screen.visibleFrame.minX), screen.visibleFrame.maxX - windowSize.width)
+            let adjustedY = min(max(savedPosition.y, screen.visibleFrame.minY), screen.visibleFrame.maxY - windowSize.height)
 
             window.setFrameOrigin(NSPoint(x: adjustedX, y: adjustedY))
         } else {
-            // Default position on target screen
+            // Default position: bottom-right of target screen with padding
             let padding: CGFloat = 40
-            let windowSize = window.frame.size
 
             let x = screen.visibleFrame.maxX - windowSize.width - padding
             let y = screen.visibleFrame.minY + padding

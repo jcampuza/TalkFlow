@@ -1,25 +1,56 @@
 import Foundation
 import AVFoundation
-import Combine
 
-final class AudioCaptureService: ObservableObject {
+/// Thread-safe buffer storage for audio capture
+/// This class is separate from AudioCaptureService to avoid MainActor isolation issues
+/// when the audio tap callback needs to store buffers from the realtime audio thread
+private final class AudioBufferStorage: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "com.talkflow.audiobuffer", qos: .userInteractive)
+    private var buffers: [AVAudioPCMBuffer] = []
+
+    func append(_ buffer: AVAudioPCMBuffer) {
+        queue.async {
+            self.buffers.append(buffer)
+        }
+    }
+
+    func getLastBuffer() -> AVAudioPCMBuffer? {
+        queue.sync {
+            buffers.last
+        }
+    }
+
+    func getAllBuffers() -> [AVAudioPCMBuffer] {
+        queue.sync {
+            buffers
+        }
+    }
+
+    func clear() {
+        queue.async {
+            self.buffers.removeAll()
+        }
+    }
+}
+
+@Observable
+final class AudioCaptureService: @unchecked Sendable {
     private let configurationManager: ConfigurationManager
 
     private var audioEngine: AVAudioEngine?
     private var inputNode: AVAudioInputNode?
-    private var audioBuffers: [AVAudioPCMBuffer] = []
+    private let bufferStorage = AudioBufferStorage()
 
-    @Published var audioLevel: Float = 0
-    @Published var isRecording = false
+    @MainActor var audioLevel: Float = 0
+    @MainActor var isRecording = false
 
     private var levelUpdateTimer: Timer?
-    private let bufferQueue = DispatchQueue(label: "com.talkflow.audiobuffer", qos: .userInteractive)
 
     init(configurationManager: ConfigurationManager) {
         self.configurationManager = configurationManager
     }
 
-    func requestMicrophoneAccess(completion: @escaping (Bool) -> Void) {
+    func requestMicrophoneAccess(completion: @escaping @Sendable (Bool) -> Void) {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
             completion(true)
@@ -36,12 +67,13 @@ final class AudioCaptureService: ObservableObject {
         }
     }
 
+    @MainActor
     func startRecording() throws {
         guard !isRecording else {
             throw AudioCaptureError.alreadyRecording
         }
 
-        audioBuffers.removeAll()
+        bufferStorage.clear()
 
         audioEngine = AVAudioEngine()
         guard let audioEngine = audioEngine else {
@@ -57,10 +89,11 @@ final class AudioCaptureService: ObservableObject {
 
         let inputFormat = inputNode!.outputFormat(forBus: 0)
 
-        // Install tap to capture audio
-        inputNode!.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, time in
-            self?.handleAudioBuffer(buffer)
-        }
+        // CRITICAL: Install tap using a nonisolated static function
+        // The closure MUST be defined in a nonisolated context to avoid
+        // inheriting MainActor isolation, which would crash when called
+        // from the realtime audio thread
+        Self.installAudioTap(on: inputNode!, format: inputFormat, storage: bufferStorage)
 
         // Prepare and start engine
         audioEngine.prepare()
@@ -74,6 +107,24 @@ final class AudioCaptureService: ObservableObject {
         Logger.shared.info("Audio capture started with format: \(inputFormat)", component: "AudioCapture")
     }
 
+    /// Install audio tap on the input node
+    /// MUST be nonisolated static to ensure the closure doesn't inherit MainActor isolation
+    /// The audio tap callback is called from a realtime audio thread, NOT the main thread
+    private nonisolated static func installAudioTap(
+        on inputNode: AVAudioInputNode,
+        format: AVAudioFormat,
+        storage: AudioBufferStorage
+    ) {
+        inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
+            // This closure runs on the realtime audio thread
+            // It must NOT have MainActor isolation
+            if let copiedBuffer = copyBuffer(buffer) {
+                storage.append(copiedBuffer)
+            }
+        }
+    }
+
+    @MainActor
     func stopRecording() -> Data {
         guard isRecording else {
             return Data()
@@ -90,28 +141,21 @@ final class AudioCaptureService: ObservableObject {
 
         // Convert buffers to raw PCM data
         let rawData = convertBuffersToData()
-        audioBuffers.removeAll()
+        bufferStorage.clear()
 
         Logger.shared.info("Audio capture stopped, captured \(rawData.count) bytes", component: "AudioCapture")
 
         return rawData
     }
 
-    private func configureInputDevice(uid: String) {
+    private nonisolated func configureInputDevice(uid: String) {
         // Note: Setting specific input device requires more complex AudioUnit configuration
         // For now, we'll use the system default
         Logger.shared.debug("Input device configuration requested: \(uid)", component: "AudioCapture")
     }
 
-    private func handleAudioBuffer(_ buffer: AVAudioPCMBuffer) {
-        bufferQueue.async { [weak self] in
-            // Create a copy of the buffer to store
-            guard let copiedBuffer = self?.copyBuffer(buffer) else { return }
-            self?.audioBuffers.append(copiedBuffer)
-        }
-    }
-
-    private func copyBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+    /// Copy an audio buffer - static so it can be called from the audio tap without capturing self
+    private static func copyBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
         guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameLength) else {
             return nil
         }
@@ -127,31 +171,27 @@ final class AudioCaptureService: ObservableObject {
         return copy
     }
 
+    @MainActor
     private func startLevelMonitoring() {
+        // Capture bufferStorage to avoid capturing self in the timer callback
+        let storage = bufferStorage
         levelUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            self?.updateAudioLevel()
+            guard let lastBuffer = storage.getLastBuffer() else { return }
+            let level = AudioCaptureService.calculateRMSLevel(from: lastBuffer)
+            Task { @MainActor in
+                self?.audioLevel = level
+            }
         }
     }
 
+    @MainActor
     private func stopLevelMonitoring() {
         levelUpdateTimer?.invalidate()
         levelUpdateTimer = nil
         audioLevel = 0
     }
 
-    private func updateAudioLevel() {
-        bufferQueue.async { [weak self] in
-            guard let self = self, let lastBuffer = self.audioBuffers.last else { return }
-
-            let level = self.calculateRMSLevel(from: lastBuffer)
-
-            DispatchQueue.main.async {
-                self.audioLevel = level
-            }
-        }
-    }
-
-    private func calculateRMSLevel(from buffer: AVAudioPCMBuffer) -> Float {
+    private static func calculateRMSLevel(from buffer: AVAudioPCMBuffer) -> Float {
         guard let channelData = buffer.floatChannelData else { return 0 }
 
         let channelDataPointer = channelData[0]
@@ -170,10 +210,10 @@ final class AudioCaptureService: ObservableObject {
         return max(0, min(1, (db + 60) / 60))
     }
 
-    private func convertBuffersToData() -> Data {
+    private nonisolated func convertBuffersToData() -> Data {
         var data = Data()
 
-        for buffer in audioBuffers {
+        for buffer in bufferStorage.getAllBuffers() {
             if let channelData = buffer.floatChannelData {
                 let frameLength = Int(buffer.frameLength)
                 let channelDataPointer = channelData[0]
@@ -194,7 +234,7 @@ final class AudioCaptureService: ObservableObject {
         return data
     }
 
-    func getAvailableInputDevices() -> [AudioDevice] {
+    nonisolated func getAvailableInputDevices() -> [AudioDevice] {
         var devices: [AudioDevice] = []
 
         var propertyAddress = AudioObjectPropertyAddress(
@@ -239,7 +279,7 @@ final class AudioCaptureService: ObservableObject {
         return devices
     }
 
-    private func getDeviceInfo(deviceID: AudioDeviceID) -> AudioDevice? {
+    private nonisolated func getDeviceInfo(deviceID: AudioDeviceID) -> AudioDevice? {
         // Get device name
         var namePropertyAddress = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyDeviceNameCFString,
@@ -272,14 +312,14 @@ final class AudioCaptureService: ObservableObject {
     }
 }
 
-struct AudioDevice: Identifiable, Hashable {
+struct AudioDevice: Identifiable, Hashable, Sendable {
     let uid: String
     let name: String
 
     var id: String { uid }
 }
 
-enum AudioCaptureError: LocalizedError {
+enum AudioCaptureError: LocalizedError, Sendable {
     case alreadyRecording
     case engineCreationFailed
     case deviceDisconnected

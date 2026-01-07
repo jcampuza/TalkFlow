@@ -2,13 +2,14 @@ import Foundation
 import Cocoa
 import Carbon.HIToolbox
 
+@MainActor
 protocol KeyEventMonitorDelegate: AnyObject {
     func keyEventMonitor(_ monitor: KeyEventMonitor, didDetectKeyDown keyCode: UInt16, flags: CGEventFlags)
     func keyEventMonitor(_ monitor: KeyEventMonitor, didDetectKeyUp keyCode: UInt16, flags: CGEventFlags)
     func keyEventMonitorDidDetectOtherKey(_ monitor: KeyEventMonitor)
 }
 
-final class KeyEventMonitor {
+final class KeyEventMonitor: @unchecked Sendable {
     weak var delegate: KeyEventMonitorDelegate?
 
     private var eventTap: CFMachPort?
@@ -43,11 +44,13 @@ final class KeyEventMonitor {
         }
 
         // Create event tap
+        // IMPORTANT: Use .listenOnly instead of .defaultTap to prevent keyboard freezes
+        // .defaultTap can block events if the callback has issues; .listenOnly only observes
         let selfPointer = Unmanaged.passUnretained(self).toOpaque()
         guard let eventTap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
-            options: .defaultTap,
+            options: .listenOnly,
             eventsOfInterest: eventMask,
             callback: callback,
             userInfo: selfPointer
@@ -116,10 +119,17 @@ final class KeyEventMonitor {
 
                 if isPressed && !isTargetKeyDown {
                     isTargetKeyDown = true
-                    delegate?.keyEventMonitor(self, didDetectKeyDown: keyCode, flags: flags)
+                    // Dispatch to MainActor since delegate protocol is @MainActor
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.delegate?.keyEventMonitor(self, didDetectKeyDown: keyCode, flags: flags)
+                    }
                 } else if !isPressed && isTargetKeyDown {
                     isTargetKeyDown = false
-                    delegate?.keyEventMonitor(self, didDetectKeyUp: keyCode, flags: flags)
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.delegate?.keyEventMonitor(self, didDetectKeyUp: keyCode, flags: flags)
+                    }
                 }
             }
         } else if type == .keyDown {
@@ -127,17 +137,26 @@ final class KeyEventMonitor {
             if keyCode == targetKeyCode && !isModifierKeyCode(keyCode) {
                 if !isTargetKeyDown {
                     isTargetKeyDown = true
-                    delegate?.keyEventMonitor(self, didDetectKeyDown: keyCode, flags: flags)
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.delegate?.keyEventMonitor(self, didDetectKeyDown: keyCode, flags: flags)
+                    }
                 }
             } else if isTargetKeyDown {
                 // Another key pressed while holding target - signal cancellation
-                delegate?.keyEventMonitorDidDetectOtherKey(self)
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.delegate?.keyEventMonitorDidDetectOtherKey(self)
+                }
             }
         } else if type == .keyUp {
             if keyCode == targetKeyCode && !isModifierKeyCode(keyCode) {
                 if isTargetKeyDown {
                     isTargetKeyDown = false
-                    delegate?.keyEventMonitor(self, didDetectKeyUp: keyCode, flags: flags)
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.delegate?.keyEventMonitor(self, didDetectKeyUp: keyCode, flags: flags)
+                    }
                 }
             }
         }

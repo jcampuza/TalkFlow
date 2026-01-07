@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-final class Logger {
+final class Logger: @unchecked Sendable {
     static let shared = Logger()
 
     private let osLog: OSLog

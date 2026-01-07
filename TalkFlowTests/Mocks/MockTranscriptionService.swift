@@ -1,7 +1,7 @@
 import Foundation
 @testable import TalkFlow
 
-final class MockTranscriptionService: TranscriptionService {
+final class MockTranscriptionService: TranscriptionService, @unchecked Sendable {
     var mockResult: TranscriptionResult?
     var mockError: Error?
     var transcribeCallCount = 0

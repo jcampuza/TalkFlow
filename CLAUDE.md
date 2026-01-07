@@ -4,19 +4,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Run Commands
 
-### Option 1: Xcode (Recommended for development)
-
-```bash
-# Open in Xcode
-open TalkFlow.xcodeproj
-
-# Then use Cmd+R to build and run
-```
-
-The Xcode project includes proper Info.plist, entitlements, and asset catalog configuration.
-
-### Option 2: Command Line (Swift Package Manager)
-
 ```bash
 # Build with Swift Package Manager
 swift build                    # Debug build
@@ -26,18 +13,21 @@ swift build -c release         # Release build
 swift test
 
 # Create macOS app bundle (includes signing and entitlements)
-./build-app.sh                 # Debug
-./build-app.sh release         # Release
+./Scripts/build-app.sh                 # Debug build
+./Scripts/build-app.sh release         # Release build
+./Scripts/build-app.sh --run           # Build and launch
+./Scripts/build-app.sh --test          # Run tests before building
+./Scripts/build-app.sh release --run   # Release build and launch
 
 # Run the app
 open .build/debug/TalkFlow.app
 ```
 
-**Note**: SPM and Xcode builds have different code signatures. Each requires its own Accessibility permission grant in System Settings.
+The build script automatically kills running instances before rebuilding and can auto-launch the app with `--run`.
 
 ## Architecture Overview
 
-TalkFlow is a native macOS menu bar app (Swift 5.9+/SwiftUI, macOS 14+) for voice-to-text dictation using OpenAI's Whisper API. Press and hold a trigger key to record, release to transcribe and paste.
+TalkFlow is a native macOS menu bar app (Swift 6/SwiftUI, macOS 15+) for voice-to-text dictation using OpenAI's Whisper API. Press and hold a trigger key to record, release to transcribe and paste.
 
 ### Core Data Flow
 
@@ -51,28 +41,41 @@ TalkFlow is a native macOS menu bar app (Swift 5.9+/SwiftUI, macOS 14+) for voic
 ### Key Directories
 
 - `TalkFlow/App/` - Entry point, AppDelegate, DependencyContainer
-- `TalkFlow/Features/` - Core modules: Audio, Shortcut, Transcription, Output, History
-- `TalkFlow/UI/` - SwiftUI views: MenuBar, Indicator, Settings, History
+- `TalkFlow/Features/` - Core modules: Audio, Shortcut, Transcription, Output, History, Dictionary
+- `TalkFlow/UI/` - SwiftUI views: MenuBar, Indicator, Settings, History, Dictionary, Onboarding
 - `TalkFlow/Services/` - KeychainService, Logger, UpdateChecker
+- `TalkFlow/Shared/` - Configuration, EnvironmentKeys
 - `TalkFlowTests/` - Unit tests with mocks
+- `Scripts/` - Build scripts
 
 ### Dependency Injection
 
-All services are lazily initialized in `DependencyContainer.swift` and accessed via AppDelegate. Add new services there following the existing pattern.
+All services are lazily initialized in `DependencyContainer.swift` and injected via SwiftUI `@Environment` with custom keys defined in `EnvironmentKeys.swift`.
+
+### Modern Swift/SwiftUI Patterns
+
+This codebase uses modern Swift 6 patterns:
+
+- **@Observable** macro for observable classes (replaces ObservableObject)
+- **@Environment** with custom keys for DI (replaces @EnvironmentObject)
+- **@Bindable** for bindings to @Observable objects in views
+- **@MainActor** isolation for UI-bound properties (not entire classes)
+- **withObservationTracking** for imperative observation outside SwiftUI
+- **async/await** for all storage and network operations
+- **Sendable** conformance on all value types for thread safety
 
 ### Important Patterns
 
-- **@Published** for reactive state (ConfigurationManager, AudioCaptureService, HistoryStorage)
-- **Protocol-based services** for testability (TranscriptionService protocol)
-- **async/await** for transcription and network operations
-- **Combine** for configuration change propagation
+- **@Observable** for reactive state (ConfigurationManager, HistoryStorage, IndicatorStateManager)
+- **Protocol-based services** for testability (TranscriptionService, HistoryStorageProtocol)
+- **async/await** for transcription, network, and storage operations
+- **withObservationTracking** for configuration change propagation in non-SwiftUI code
 
 ## Key Files
 
 - `SPEC.md` - Complete requirements and architecture specification
-- `TalkFlow.xcodeproj` - Xcode project for development
 - `Package.swift` - SPM manifest (single dependency: GRDB.swift)
-- `build-app.sh` - Creates proper .app bundle with entitlements (for CLI builds)
+- `Scripts/build-app.sh` - Creates proper .app bundle with entitlements
 - `TalkFlow/Resources/TalkFlow.entitlements` - Sandbox permissions (audio, network)
 - `TalkFlow/Resources/Info.plist` - Bundle metadata and permission descriptions
 
@@ -90,6 +93,45 @@ SQLite via GRDB with FTS5 full-text search. Location: `~/Library/Application Sup
 
 File-based logging to `~/Library/Logs/TalkFlow/talkflow.log` (7-day rotation). Use `Logger.shared.info()`, `.debug()`, `.error()`.
 
+## Crash Logs
+
+macOS crash reports are stored in `~/Library/Logs/DiagnosticReports/`. Look for files named `TalkFlow-*.ips`.
+
+```bash
+# Find recent TalkFlow crashes
+ls -la ~/Library/Logs/DiagnosticReports/ | grep -i talkflow
+
+# Read most recent crash
+cat ~/Library/Logs/DiagnosticReports/TalkFlow-*.ips | head -200
+```
+
+Key crash indicators:
+- `"faultingThread"` - Which thread crashed
+- `"exception"` - Exception type (EXC_BREAKPOINT = Swift runtime assertion)
+- `"frames"` - Stack trace showing the crash location
+- Look for `sourceFile` entries pointing to TalkFlow code
+
 ## API Key Storage
 
 Stored in macOS Keychain via KeychainService. Service identifier: `com.josephcampuzano.TalkFlow`
+
+## Development
+
+- ALWAYS write tests for new code.
+- ALWAYS run `swift test` when making changes to verify tests pass.
+- ALWAYS run `./Scripts/build-app.sh` when making changes to verify the app compiles.
+- All features should include relevant debug logging for agents to look up.
+
+## UI/Styling Guidelines
+
+**IMPORTANT: Never use system-adaptive colors in UI code.** The app uses a light-only theme that must look correct regardless of system dark/light mode.
+
+- **NEVER** use: `.primary`, `.secondary`, `NSColor.controlBackgroundColor`, `NSColor.textColor`, `NSColor.labelColor`, `NSColor.separatorColor`, `NSColor.tertiaryLabelColor`, or any other system color that adapts to dark mode.
+- **ALWAYS** use colors from `DesignConstants` (defined in `TalkFlow/Shared/DesignConstants.swift`):
+  - Text: `DesignConstants.primaryText`, `.secondaryText`, `.tertiaryText`
+  - Backgrounds: `DesignConstants.sidebarBackground`, `.contentBackground`, `.searchBarBackground`, `.hoverBackground`, etc.
+  - Dividers: `DesignConstants.dividerColor`
+- When adding new UI elements, add any new colors to `DesignConstants.swift` rather than using inline Color values.
+- Use `Color.white` for content area backgrounds (this is an explicit value, not system-adaptive).
+- The main window uses `.environment(\.colorScheme, .light)` to force light mode for all system controls (Pickers, Toggles, etc.). This ensures they display correctly regardless of system appearance.
+- For NSView-based controls (like NSButton), use `attributedTitle` with explicit colors instead of `.title`.

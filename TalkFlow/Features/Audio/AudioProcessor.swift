@@ -2,14 +2,14 @@ import Foundation
 import AVFoundation
 import Accelerate
 
-struct ProcessedAudioResult {
+struct ProcessedAudioResult: Sendable {
     let audioData: Data
     let isEmpty: Bool
 
     static let empty = ProcessedAudioResult(audioData: Data(), isEmpty: true)
 }
 
-final class AudioProcessor {
+final class AudioProcessor: @unchecked Sendable {
     private let configurationManager: ConfigurationManager
 
     private lazy var voiceActivityDetector: VoiceActivityDetector = {
@@ -177,7 +177,7 @@ final class AudioProcessor {
     }
 }
 
-enum AudioProcessingError: LocalizedError {
+enum AudioProcessingError: LocalizedError, Sendable {
     case encodingFailed(String)
 
     var errorDescription: String? {

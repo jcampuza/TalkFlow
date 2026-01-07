@@ -68,7 +68,6 @@ TestResults/
 # Temporary files
 *.tmp
 *.temp
-SPEC-INTERVIEW-*.md
 
 # Temporary design assets
 talkflow-dictation-app-icon--*.png

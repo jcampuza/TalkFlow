@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TranscriptionSettingsView: View {
     @Environment(\.configurationManager) private var configurationManager
+    @Environment(\.modelManager) private var modelManager
     @State private var apiKey: String = ""
     @State private var isAPIKeyVisible = false
     @State private var showingSaveConfirmation = false
@@ -9,9 +10,10 @@ struct TranscriptionSettingsView: View {
     private let keychainService = KeychainService()
 
     var body: some View {
-        if let manager = configurationManager {
+        if let manager = configurationManager, let models = modelManager {
             TranscriptionSettingsContent(
                 manager: manager,
+                modelManager: models,
                 apiKey: $apiKey,
                 isAPIKeyVisible: $isAPIKeyVisible,
                 showingSaveConfirmation: $showingSaveConfirmation,
@@ -28,7 +30,6 @@ struct TranscriptionSettingsView: View {
 
     private func loadAPIKey() {
         if let key = keychainService.getAPIKey() {
-            // Show masked version
             apiKey = String(repeating: "*", count: min(key.count, 20))
         }
     }
@@ -36,93 +37,129 @@ struct TranscriptionSettingsView: View {
 
 private struct TranscriptionSettingsContent: View {
     @Bindable var manager: ConfigurationManager
+    @Bindable var modelManager: ModelManager
     @Binding var apiKey: String
     @Binding var isAPIKeyVisible: Bool
     @Binding var showingSaveConfirmation: Bool
     let keychainService: KeychainService
 
+    @State private var showDownloadSuccessAlert = false
+    @State private var showDownloadErrorAlert = false
+    @State private var downloadErrorMessage = ""
+    @State private var downloadedModelName = ""
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            // API Configuration section
-            SettingsSection(title: "API Configuration") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("OpenAI API Key")
-                        .foregroundColor(DesignConstants.primaryText)
-
-                    HStack {
-                        if isAPIKeyVisible {
-                            TextField("sk-...", text: $apiKey)
-                                .textFieldStyle(.plain)
-                                .padding(8)
-                                .background(DesignConstants.searchBarBackground)
-                                .cornerRadius(6)
+            // Transcription Source section
+            SettingsSection(title: "Transcription Source") {
+                VStack(spacing: 0) {
+                    // Local Model Toggle
+                    SettingsRow {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Use Local Model")
                                 .foregroundColor(DesignConstants.primaryText)
-                        } else {
-                            SecureField("sk-...", text: $apiKey)
-                                .textFieldStyle(.plain)
-                                .padding(8)
-                                .background(DesignConstants.searchBarBackground)
-                                .cornerRadius(6)
-                                .foregroundColor(DesignConstants.primaryText)
-                        }
-
-                        Button(action: { isAPIKeyVisible.toggle() }) {
-                            Image(systemName: isAPIKeyVisible ? "eye.slash" : "eye")
+                            Text("Transcribe on-device without sending audio to the cloud")
+                                .font(.caption)
                                 .foregroundColor(DesignConstants.secondaryText)
                         }
-                        .buttonStyle(.borderless)
-
-                        Button("Save") {
-                            saveAPIKey()
-                        }
-                        .disabled(apiKey.isEmpty)
+                        Spacer()
+                        Toggle("", isOn: localModeBinding)
+                            .labelsHidden()
+                            .disabled(modelManager.isDownloading)
                     }
 
-                    Text("Your API key is stored securely in the macOS Keychain")
-                        .font(.caption)
-                        .foregroundColor(DesignConstants.secondaryText)
-
-                    Link("Get an API key from OpenAI", destination: URL(string: "https://platform.openai.com/api-keys")!)
-                        .font(.caption)
+                    // Show all models when local mode is on
+                    if manager.configuration.transcriptionMode == .local {
+                        SettingsDivider()
+                        localModelSection
+                    }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+            }
+
+            // API Configuration section (shown when not in local mode)
+            if manager.configuration.transcriptionMode == .api {
+                SettingsSection(title: "API Configuration") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("OpenAI API Key")
+                            .foregroundColor(DesignConstants.primaryText)
+
+                        HStack {
+                            if isAPIKeyVisible {
+                                TextField("sk-...", text: $apiKey)
+                                    .textFieldStyle(.plain)
+                                    .padding(8)
+                                    .background(DesignConstants.searchBarBackground)
+                                    .cornerRadius(6)
+                                    .foregroundColor(DesignConstants.primaryText)
+                            } else {
+                                SecureField("sk-...", text: $apiKey)
+                                    .textFieldStyle(.plain)
+                                    .padding(8)
+                                    .background(DesignConstants.searchBarBackground)
+                                    .cornerRadius(6)
+                                    .foregroundColor(DesignConstants.primaryText)
+                            }
+
+                            Button(action: { isAPIKeyVisible.toggle() }) {
+                                Image(systemName: isAPIKeyVisible ? "eye.slash" : "eye")
+                                    .foregroundColor(DesignConstants.secondaryText)
+                            }
+                            .buttonStyle(.borderless)
+
+                            Button("Save") {
+                                saveAPIKey()
+                            }
+                            .disabled(apiKey.isEmpty)
+                        }
+
+                        Text("Your API key is stored securely in the macOS Keychain")
+                            .font(.caption)
+                            .foregroundColor(DesignConstants.secondaryText)
+
+                        Link("Get an API key from OpenAI", destination: URL(string: "https://platform.openai.com/api-keys")!)
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                }
             }
 
             // Transcription Settings section
             SettingsSection(title: "Transcription Settings") {
                 VStack(spacing: 0) {
-                    SettingsRow {
-                        Text("Model")
-                            .foregroundColor(DesignConstants.primaryText)
-                        Spacer()
-                        Picker("", selection: $manager.configuration.whisperModel) {
-                            Text("whisper-1 (Default)").tag("whisper-1")
+                    if manager.configuration.transcriptionMode == .api {
+                        SettingsRow {
+                            Text("Model")
+                                .foregroundColor(DesignConstants.primaryText)
+                            Spacer()
+                            Picker("", selection: $manager.configuration.whisperModel) {
+                                Text("whisper-1 (Default)").tag("whisper-1")
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 180)
                         }
-                        .pickerStyle(.menu)
-                        .frame(width: 180)
-                    }
 
-                    SettingsDivider()
+                        SettingsDivider()
+                    }
 
                     SettingsRow {
                         Text("Language")
                             .foregroundColor(DesignConstants.primaryText)
                         Spacer()
-                        Picker("", selection: $manager.configuration.language) {
-                            Text("Auto-detect").tag(nil as String?)
+                        Picker("", selection: languageBinding) {
+                            Text("Auto-detect").tag("auto")
                             Divider()
-                            Text("English").tag("en" as String?)
-                            Text("Spanish").tag("es" as String?)
-                            Text("French").tag("fr" as String?)
-                            Text("German").tag("de" as String?)
-                            Text("Italian").tag("it" as String?)
-                            Text("Portuguese").tag("pt" as String?)
-                            Text("Japanese").tag("ja" as String?)
-                            Text("Chinese").tag("zh" as String?)
-                            Text("Korean").tag("ko" as String?)
-                            Text("Russian").tag("ru" as String?)
-                            Text("Arabic").tag("ar" as String?)
+                            Text("English").tag("en")
+                            Text("Spanish").tag("es")
+                            Text("French").tag("fr")
+                            Text("German").tag("de")
+                            Text("Italian").tag("it")
+                            Text("Portuguese").tag("pt")
+                            Text("Japanese").tag("ja")
+                            Text("Chinese").tag("zh")
+                            Text("Korean").tag("ko")
+                            Text("Russian").tag("ru")
+                            Text("Arabic").tag("ar")
                         }
                         .pickerStyle(.menu)
                         .frame(width: 180)
@@ -155,18 +192,230 @@ private struct TranscriptionSettingsContent: View {
         .alert("API Key Saved", isPresented: $showingSaveConfirmation) {
             Button("OK", role: .cancel) {}
         }
+        .alert("Model Downloaded", isPresented: $showDownloadSuccessAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("\(downloadedModelName) has been downloaded successfully and is now ready to use.")
+        }
+        .alert("Download Failed", isPresented: $showDownloadErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(downloadErrorMessage)
+        }
     }
 
+    // MARK: - Local Model Section
+
+    @ViewBuilder
+    private var localModelSection: some View {
+        VStack(spacing: 0) {
+            // If downloading, show progress (blocks interaction)
+            if modelManager.isDownloading {
+                downloadProgressView
+            } else {
+                // Always show all models
+                ForEach(LocalWhisperModel.allModels) { model in
+                    if model.id != LocalWhisperModel.allModels.first?.id {
+                        SettingsDivider()
+                    }
+                    modelRowView(model: model)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var downloadProgressView: some View {
+        SettingsRow {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Downloading model...")
+                        .foregroundColor(DesignConstants.primaryText)
+                    Spacer()
+                    Button("Cancel") {
+                        modelManager.cancelDownload()
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundColor(.red)
+                }
+
+                ProgressView(value: modelManager.downloadProgress)
+                    .progressViewStyle(.linear)
+
+                Text("\(Int(modelManager.downloadProgress * 100))% complete")
+                    .font(.caption)
+                    .foregroundColor(DesignConstants.secondaryText)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func modelRowView(model: LocalWhisperModel) -> some View {
+        let isDownloaded = modelManager.downloadedModels.contains(model.id)
+        let isActive = manager.configuration.selectedLocalModel == model.id
+
+        SettingsRow {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    // Green checkmark for active, grey for downloaded but not active
+                    if isActive {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                    } else if isDownloaded {
+                        Image(systemName: "checkmark.circle")
+                            .foregroundColor(DesignConstants.secondaryText)
+                    }
+
+                    Text(model.displayName)
+                        .foregroundColor(DesignConstants.primaryText)
+                    Text(model.sizeDescription)
+                        .font(.caption)
+                        .foregroundColor(DesignConstants.secondaryText)
+                }
+                Text(model.qualityDescription)
+                    .font(.caption)
+                    .foregroundColor(DesignConstants.secondaryText)
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                // Active model: just Delete
+                // Downloaded but not active: "Use This" + Delete
+                // Not downloaded: "Download"
+                if isActive {
+                    // Active model only has delete
+                    Button("Delete") {
+                        deleteModel(model.id)
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundColor(.red)
+                } else if isDownloaded {
+                    Button("Use This") {
+                        manager.configuration.selectedLocalModel = model.id
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Delete") {
+                        deleteModel(model.id)
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundColor(.red)
+                } else {
+                    Button("Download") {
+                        downloadModel(model.id)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+    }
+
+    // MARK: - Bindings
+
+    private var localModeBinding: Binding<Bool> {
+        Binding(
+            get: { manager.configuration.transcriptionMode == .local },
+            set: { newValue in
+                if newValue {
+                    // Switch to local mode - if we have a downloaded model, select it
+                    manager.configuration.transcriptionMode = .local
+                    // Auto-select a downloaded model if none is selected
+                    if manager.configuration.selectedLocalModel == nil ||
+                       !modelManager.downloadedModels.contains(manager.configuration.selectedLocalModel ?? "") {
+                        // Select the first downloaded model, or leave nil to prompt download
+                        manager.configuration.selectedLocalModel = modelManager.downloadedModels.first
+                    }
+                } else {
+                    manager.configuration.transcriptionMode = .api
+                }
+            }
+        )
+    }
+
+    private var languageBinding: Binding<String> {
+        Binding(
+            get: {
+                if manager.configuration.transcriptionMode == .local {
+                    return manager.configuration.transcriptionLanguage
+                } else {
+                    return manager.configuration.language ?? "auto"
+                }
+            },
+            set: { newValue in
+                if manager.configuration.transcriptionMode == .local {
+                    manager.configuration.transcriptionLanguage = newValue
+                } else {
+                    manager.configuration.language = newValue == "auto" ? nil : newValue
+                }
+            }
+        )
+    }
+
+    // MARK: - Actions
+
     private func saveAPIKey() {
-        // Don't save if it's just the masked version
         if apiKey.allSatisfy({ $0 == "*" }) {
             return
         }
 
         keychainService.setAPIKey(apiKey)
         showingSaveConfirmation = true
-
-        // Mask the key after saving
         apiKey = String(repeating: "*", count: min(apiKey.count, 20))
+    }
+
+    private func downloadModel(_ modelId: String) {
+        Task {
+            do {
+                Logger.shared.info("Starting download of model: \(modelId)", component: "TranscriptionSettings")
+                try await modelManager.downloadModel(modelId) { progress in
+                    // Progress is automatically updated via @Observable
+                    Logger.shared.debug("Download progress: \(Int(progress * 100))%", component: "TranscriptionSettings")
+                }
+                // After successful download, select the model
+                await MainActor.run {
+                    Logger.shared.info("Download completed successfully for: \(modelId)", component: "TranscriptionSettings")
+                    manager.configuration.selectedLocalModel = modelId
+
+                    // Show success alert
+                    if let model = LocalWhisperModel.model(for: modelId) {
+                        downloadedModelName = model.displayName
+                    } else {
+                        downloadedModelName = modelId
+                    }
+                    showDownloadSuccessAlert = true
+                }
+            } catch {
+                Logger.shared.error("Model download failed: \(error)", component: "TranscriptionSettings")
+                await MainActor.run {
+                    downloadErrorMessage = error.localizedDescription
+                    showDownloadErrorAlert = true
+                    // Reset state
+                    modelManager.resetDownloadState()
+                }
+            }
+        }
+    }
+
+    private func deleteModel(_ modelId: String) {
+        Task {
+            do {
+                try await modelManager.deleteModel(modelId)
+                await MainActor.run {
+                    if manager.configuration.selectedLocalModel == modelId {
+                        manager.configuration.selectedLocalModel = nil
+                        // If no other models are downloaded, switch to API mode
+                        if modelManager.downloadedModels.isEmpty {
+                            manager.configuration.transcriptionMode = .api
+                        } else {
+                            // Select another downloaded model
+                            manager.configuration.selectedLocalModel = modelManager.downloadedModels.first
+                        }
+                    }
+                }
+            } catch {
+                Logger.shared.error("Model deletion failed: \(error)", component: "TranscriptionSettings")
+            }
+        }
     }
 }

@@ -10,13 +10,15 @@ let package = Package(
         .executable(name: "TalkFlow", targets: ["TalkFlow"])
     ],
     dependencies: [
-        .package(url: "https://github.com/groue/GRDB.swift.git", from: "6.24.0")
+        .package(url: "https://github.com/groue/GRDB.swift.git", from: "6.24.0"),
+        .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.15.0")
     ],
     targets: [
         .executableTarget(
             name: "TalkFlow",
             dependencies: [
-                .product(name: "GRDB", package: "GRDB.swift")
+                .product(name: "GRDB", package: "GRDB.swift"),
+                .product(name: "WhisperKit", package: "WhisperKit")
             ],
             path: "TalkFlow",
             exclude: [

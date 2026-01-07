@@ -2,11 +2,12 @@ import SwiftUI
 
 struct AudioSettingsView: View {
     @Environment(\.configurationManager) private var configurationManager
+    @Environment(\.audioSampler) private var audioSampler
     @State private var availableDevices: [AudioDevice] = []
 
     var body: some View {
-        if let manager = configurationManager {
-            AudioSettingsContent(manager: manager, availableDevices: $availableDevices)
+        if let manager = configurationManager, let sampler = audioSampler {
+            AudioSettingsContent(manager: manager, audioSampler: sampler, availableDevices: $availableDevices)
                 .onAppear {
                     loadDevices(manager: manager)
                 }
@@ -24,6 +25,7 @@ struct AudioSettingsView: View {
 
 private struct AudioSettingsContent: View {
     @Bindable var manager: ConfigurationManager
+    @Bindable var audioSampler: AudioSampler
     @Binding var availableDevices: [AudioDevice]
 
     var body: some View {
@@ -46,9 +48,141 @@ private struct AudioSettingsContent: View {
                 }
             }
 
+            // Test Microphone section
+            SettingsSection(title: "Test Microphone") {
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Record a short clip to test your microphone and hear how it sounds.")
+                            .font(.callout)
+                            .foregroundColor(DesignConstants.secondaryText)
+
+                        HStack(spacing: 12) {
+                            // Record/Stop button
+                            if audioSampler.state == .recording {
+                                Button(action: { audioSampler.stopRecording() }) {
+                                    HStack {
+                                        Image(systemName: "stop.fill")
+                                        Text("Stop")
+                                    }
+                                    .frame(width: 100)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red)
+                            } else {
+                                Button(action: { startRecording() }) {
+                                    HStack {
+                                        Image(systemName: "mic.fill")
+                                        Text("Record")
+                                    }
+                                    .frame(width: 100)
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(audioSampler.state == .playing)
+                            }
+
+                            // Play button
+                            if audioSampler.hasRecording {
+                                if audioSampler.state == .playing {
+                                    Button(action: { audioSampler.stopPlayback() }) {
+                                        HStack {
+                                            Image(systemName: "stop.fill")
+                                            Text("Stop")
+                                        }
+                                        .frame(width: 100)
+                                    }
+                                    .buttonStyle(.bordered)
+                                } else {
+                                    Button(action: { audioSampler.play() }) {
+                                        HStack {
+                                            Image(systemName: "play.fill")
+                                            Text("Play")
+                                        }
+                                        .frame(width: 100)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .disabled(audioSampler.state == .recording)
+                                }
+                            }
+
+                            // Clear button
+                            if audioSampler.hasRecording && audioSampler.state == .idle {
+                                Button(action: { audioSampler.clearRecording() }) {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                                .foregroundColor(DesignConstants.secondaryText)
+                            }
+
+                            Spacer()
+                        }
+
+                        // Recording indicator
+                        if audioSampler.state == .recording {
+                            HStack(spacing: 8) {
+                                // Audio level meter
+                                GeometryReader { geometry in
+                                    ZStack(alignment: .leading) {
+                                        RoundedRectangle(cornerRadius: 2)
+                                            .fill(DesignConstants.searchBarBackground)
+                                        RoundedRectangle(cornerRadius: 2)
+                                            .fill(Color.green)
+                                            .frame(width: geometry.size.width * CGFloat(audioSampler.audioLevel))
+                                    }
+                                }
+                                .frame(height: 8)
+
+                                Text(String(format: "%.1fs / 10s", audioSampler.recordingDuration))
+                                    .font(.caption)
+                                    .foregroundColor(DesignConstants.secondaryText)
+                                    .frame(width: 70, alignment: .trailing)
+                            }
+                        }
+
+                        // Playback indicator
+                        if audioSampler.state == .playing {
+                            HStack {
+                                Image(systemName: "speaker.wave.2.fill")
+                                    .foregroundColor(.blue)
+                                Text("Playing...")
+                                    .font(.caption)
+                                    .foregroundColor(DesignConstants.secondaryText)
+                            }
+                        }
+
+                        // Ready to play indicator
+                        if audioSampler.hasRecording && audioSampler.state == .idle {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Recording ready - click Play to listen")
+                                    .font(.caption)
+                                    .foregroundColor(DesignConstants.secondaryText)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                }
+            }
+
             // Audio Processing section
             SettingsSection(title: "Audio Processing") {
                 VStack(spacing: 0) {
+                    SettingsRow {
+                        Toggle(isOn: $manager.configuration.voiceIsolationEnabled) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Voice Isolation")
+                                    .foregroundColor(DesignConstants.primaryText)
+                                Text("Uses Apple's voice processing to reduce background noise and isolate speech")
+                                    .font(.caption)
+                                    .foregroundColor(DesignConstants.secondaryText)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                    }
+
+                    SettingsDivider()
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Silence Threshold")
@@ -117,5 +251,13 @@ private struct AudioSettingsContent: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func startRecording() {
+        do {
+            try audioSampler.startRecording()
+        } catch {
+            Logger.shared.error("Failed to start audio sample recording: \(error)", component: "AudioSettings")
+        }
     }
 }

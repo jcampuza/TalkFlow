@@ -197,6 +197,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environment(\.configurationManager, dependencyContainer.configurationManager)
             .environment(\.historyStorage, dependencyContainer.historyStorage)
             .environment(\.dictionaryManager, dependencyContainer.dictionaryManager)
+            .environment(\.modelManager, dependencyContainer.modelManager)
+            .environment(\.audioSampler, dependencyContainer.audioSampler)
 
         let hostingController = NSHostingController(rootView: contentView)
 

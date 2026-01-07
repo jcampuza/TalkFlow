@@ -67,8 +67,10 @@ final class HistoryStorage: HistoryStorageProtocol, @unchecked Sendable {
     private func setupDatabase() throws {
         dbQueue = try DatabaseQueue(path: databaseURL.path)
 
-        try dbQueue?.write { db in
-            // Create main table
+        var migrator = DatabaseMigrator()
+
+        // Initial schema
+        migrator.registerMigration("createTranscriptions") { db in
             try db.create(table: "transcriptions", ifNotExists: true) { t in
                 t.column("id", .text).primaryKey()
                 t.column("text", .text).notNull()
@@ -104,6 +106,32 @@ final class HistoryStorage: HistoryStorageProtocol, @unchecked Sendable {
                 END
             """)
         }
+
+        // Add local transcription fields
+        migrator.registerMigration("addTranscriptionSource") { db in
+            // Check if columns already exist (for databases created before migrations)
+            let columns = try db.columns(in: "transcriptions").map { $0.name }
+
+            if !columns.contains("source") {
+                try db.alter(table: "transcriptions") { t in
+                    t.add(column: "source", .text)
+                }
+            }
+            if !columns.contains("model") {
+                try db.alter(table: "transcriptions") { t in
+                    t.add(column: "model", .text)
+                }
+            }
+            if !columns.contains("metadata") {
+                try db.alter(table: "transcriptions") { t in
+                    t.add(column: "metadata", .text)
+                }
+            }
+
+            Logger.shared.info("Database migration: added source, model, metadata columns", component: "HistoryStorage")
+        }
+
+        try migrator.migrate(dbQueue!)
     }
 
     func save(_ record: TranscriptionRecord) async throws {

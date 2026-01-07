@@ -87,6 +87,16 @@ final class AudioCaptureService: @unchecked Sendable {
             configureInputDevice(uid: deviceUID)
         }
 
+        // Enable voice processing (voice isolation) if configured
+        if configurationManager.configuration.voiceIsolationEnabled {
+            do {
+                try inputNode!.setVoiceProcessingEnabled(true)
+                Logger.shared.info("Voice processing enabled", component: "AudioCapture")
+            } catch {
+                Logger.shared.warning("Failed to enable voice processing: \(error)", component: "AudioCapture")
+            }
+        }
+
         let inputFormat = inputNode!.outputFormat(forBus: 0)
 
         // CRITICAL: Install tap using a nonisolated static function

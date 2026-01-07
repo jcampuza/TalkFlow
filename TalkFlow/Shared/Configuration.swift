@@ -1,6 +1,12 @@
 import Foundation
 import SwiftUI
 
+/// Transcription mode: API (cloud) or local (on-device)
+enum TranscriptionMode: String, Codable, Sendable {
+    case api
+    case local
+}
+
 struct AppConfiguration: Codable, Sendable {
     // Shortcut
     var triggerShortcut: ShortcutConfiguration = .rightCommand
@@ -10,14 +16,20 @@ struct AppConfiguration: Codable, Sendable {
     var inputDeviceUID: String? = nil
     var silenceThresholdDb: Float = -40.0
     var noiseGateThresholdDb: Float = -50.0
+    var voiceIsolationEnabled: Bool = true
 
     // Recording limits
     var maxRecordingDurationSeconds: Int = 120
     var warningDurationSeconds: Int = 60
 
-    // Transcription
+    // Transcription - API
     var whisperModel: String = "whisper-1"
     var language: String? = nil
+
+    // Transcription - Local
+    var transcriptionMode: TranscriptionMode = .api
+    var selectedLocalModel: String? = nil
+    var transcriptionLanguage: String = "auto"  // ISO code or "auto"
 
     // Output
     var stripPunctuation: Bool = false
@@ -33,10 +45,14 @@ struct AppConfiguration: Codable, Sendable {
         case inputDeviceUID
         case silenceThresholdDb
         case noiseGateThresholdDb
+        case voiceIsolationEnabled
         case maxRecordingDurationSeconds
         case warningDurationSeconds
         case whisperModel
         case language
+        case transcriptionMode
+        case selectedLocalModel
+        case transcriptionLanguage
         case stripPunctuation
         case indicatorVisibleWhenIdle
         case indicatorPositionX
@@ -53,10 +69,14 @@ struct AppConfiguration: Codable, Sendable {
         inputDeviceUID = try container.decodeIfPresent(String.self, forKey: .inputDeviceUID)
         silenceThresholdDb = try container.decodeIfPresent(Float.self, forKey: .silenceThresholdDb) ?? -40.0
         noiseGateThresholdDb = try container.decodeIfPresent(Float.self, forKey: .noiseGateThresholdDb) ?? -50.0
+        voiceIsolationEnabled = try container.decodeIfPresent(Bool.self, forKey: .voiceIsolationEnabled) ?? true
         maxRecordingDurationSeconds = try container.decodeIfPresent(Int.self, forKey: .maxRecordingDurationSeconds) ?? 120
         warningDurationSeconds = try container.decodeIfPresent(Int.self, forKey: .warningDurationSeconds) ?? 60
         whisperModel = try container.decodeIfPresent(String.self, forKey: .whisperModel) ?? "whisper-1"
         language = try container.decodeIfPresent(String.self, forKey: .language)
+        transcriptionMode = try container.decodeIfPresent(TranscriptionMode.self, forKey: .transcriptionMode) ?? .api
+        selectedLocalModel = try container.decodeIfPresent(String.self, forKey: .selectedLocalModel)
+        transcriptionLanguage = try container.decodeIfPresent(String.self, forKey: .transcriptionLanguage) ?? "auto"
         stripPunctuation = try container.decodeIfPresent(Bool.self, forKey: .stripPunctuation) ?? false
         indicatorVisibleWhenIdle = try container.decodeIfPresent(Bool.self, forKey: .indicatorVisibleWhenIdle) ?? false
 
@@ -74,10 +94,14 @@ struct AppConfiguration: Codable, Sendable {
         try container.encodeIfPresent(inputDeviceUID, forKey: .inputDeviceUID)
         try container.encode(silenceThresholdDb, forKey: .silenceThresholdDb)
         try container.encode(noiseGateThresholdDb, forKey: .noiseGateThresholdDb)
+        try container.encode(voiceIsolationEnabled, forKey: .voiceIsolationEnabled)
         try container.encode(maxRecordingDurationSeconds, forKey: .maxRecordingDurationSeconds)
         try container.encode(warningDurationSeconds, forKey: .warningDurationSeconds)
         try container.encode(whisperModel, forKey: .whisperModel)
         try container.encodeIfPresent(language, forKey: .language)
+        try container.encode(transcriptionMode, forKey: .transcriptionMode)
+        try container.encodeIfPresent(selectedLocalModel, forKey: .selectedLocalModel)
+        try container.encode(transcriptionLanguage, forKey: .transcriptionLanguage)
         try container.encode(stripPunctuation, forKey: .stripPunctuation)
         try container.encode(indicatorVisibleWhenIdle, forKey: .indicatorVisibleWhenIdle)
 

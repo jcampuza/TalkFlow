@@ -51,3 +51,29 @@ extension EnvironmentValues {
         set { self[DictionaryManagerKey.self] = newValue }
     }
 }
+
+// MARK: - ModelManager Environment Key
+
+private struct ModelManagerKey: EnvironmentKey {
+    static let defaultValue: ModelManager? = nil
+}
+
+extension EnvironmentValues {
+    var modelManager: ModelManager? {
+        get { self[ModelManagerKey.self] }
+        set { self[ModelManagerKey.self] = newValue }
+    }
+}
+
+// MARK: - AudioSampler Environment Key
+
+private struct AudioSamplerKey: EnvironmentKey {
+    static let defaultValue: AudioSampler? = nil
+}
+
+extension EnvironmentValues {
+    var audioSampler: AudioSampler? {
+        get { self[AudioSamplerKey.self] }
+        set { self[AudioSamplerKey.self] = newValue }
+    }
+}

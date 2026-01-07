@@ -8,16 +8,32 @@ struct TranscriptionRecord: Codable, Identifiable, Hashable, FetchableRecord, Pe
     var durationMs: Int?
     var confidence: Double?
     var createdAt: Date
+    var source: String?    // "api" or "local"
+    var model: String?     // model identifier (e.g., "whisper-1", "openai_whisper-small")
+    var metadata: String?  // JSON string with word timestamps, etc.
 
     static let databaseTableName = "transcriptions"
 
-    init(id: String = UUID().uuidString, text: String, timestamp: Date = Date(), durationMs: Int? = nil, confidence: Double? = nil, createdAt: Date = Date()) {
+    init(
+        id: String = UUID().uuidString,
+        text: String,
+        timestamp: Date = Date(),
+        durationMs: Int? = nil,
+        confidence: Double? = nil,
+        createdAt: Date = Date(),
+        source: String? = nil,
+        model: String? = nil,
+        metadata: String? = nil
+    ) {
         self.id = id
         self.text = text
         self.timestamp = timestamp
         self.durationMs = durationMs
         self.confidence = confidence
         self.createdAt = createdAt
+        self.source = source
+        self.model = model
+        self.metadata = metadata
     }
 
     // MARK: - FetchableRecord
@@ -29,6 +45,9 @@ struct TranscriptionRecord: Codable, Identifiable, Hashable, FetchableRecord, Pe
         durationMs = row["duration_ms"]
         confidence = row["confidence"]
         createdAt = row["created_at"]
+        source = row["source"]
+        model = row["model"]
+        metadata = row["metadata"]
     }
 
     // MARK: - PersistableRecord
@@ -40,6 +59,9 @@ struct TranscriptionRecord: Codable, Identifiable, Hashable, FetchableRecord, Pe
         container["duration_ms"] = durationMs
         container["confidence"] = confidence
         container["created_at"] = createdAt
+        container["source"] = source
+        container["model"] = model
+        container["metadata"] = metadata
     }
 
     // MARK: - Display Helpers

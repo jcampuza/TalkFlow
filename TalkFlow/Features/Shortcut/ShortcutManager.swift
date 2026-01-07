@@ -311,7 +311,10 @@ final class ShortcutManager: KeyEventMonitorDelegate {
                 let record = TranscriptionRecord(
                     text: finalText,
                     durationMs: Int(duration * 1000),
-                    confidence: transcriptionResult.confidence
+                    confidence: transcriptionResult.confidence,
+                    source: transcriptionResult.source.rawValue,
+                    model: transcriptionResult.model,
+                    metadata: transcriptionResult.metadata
                 )
                 try? await history.save(record)
 

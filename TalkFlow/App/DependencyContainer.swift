@@ -44,14 +44,45 @@ final class DependencyContainer {
         AudioProcessor(configurationManager: configurationManager)
     }()
 
+    lazy var audioSampler: AudioSampler = {
+        AudioSampler(configurationManager: configurationManager)
+    }()
+
+    // MARK: - Local Model Management
+
+    lazy var modelManager: ModelManager = {
+        ModelManager()
+    }()
+
     // MARK: - Transcription
 
-    lazy var transcriptionService: TranscriptionService = {
+    lazy var openAIWhisperService: OpenAIWhisperService = {
         OpenAIWhisperService(
             keychainService: keychainService,
             configurationManager: configurationManager,
             dictionaryManager: dictionaryManager
         )
+    }()
+
+    lazy var localTranscriptionService: LocalTranscriptionService = {
+        LocalTranscriptionService(
+            configurationManager: configurationManager,
+            modelManager: modelManager
+        )
+    }()
+
+    lazy var transcriptionRouter: TranscriptionRouter = {
+        TranscriptionRouter(
+            openAIService: openAIWhisperService,
+            localService: localTranscriptionService,
+            configurationManager: configurationManager,
+            modelManager: modelManager
+        )
+    }()
+
+    /// The transcription service to use - routes to API or local based on configuration
+    lazy var transcriptionService: TranscriptionService = {
+        transcriptionRouter
     }()
 
     // MARK: - Output

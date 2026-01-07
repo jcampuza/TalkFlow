@@ -14,7 +14,7 @@ final class OpenAIWhisperService: TranscriptionService, @unchecked Sendable {
         self.dictionaryManager = dictionaryManager
     }
 
-    func transcribe(audio: Data) async throws -> TranscriptionResult {
+    func transcribe(audio: Data) async throws -> TranscriptionOutput {
         guard let apiKey = keychainService.getAPIKey() else {
             throw TranscriptionError.noAPIKey
         }
@@ -54,7 +54,7 @@ final class OpenAIWhisperService: TranscriptionService, @unchecked Sendable {
         throw lastError ?? TranscriptionError.maxRetriesExceeded
     }
 
-    private func performTranscription(audio: Data, apiKey: String) async throws -> TranscriptionResult {
+    private func performTranscription(audio: Data, apiKey: String) async throws -> TranscriptionOutput {
         let boundary = UUID().uuidString
 
         var request = URLRequest(url: baseURL)
@@ -132,7 +132,7 @@ final class OpenAIWhisperService: TranscriptionService, @unchecked Sendable {
         }
     }
 
-    private func parseResponse(_ data: Data) throws -> TranscriptionResult {
+    private func parseResponse(_ data: Data) throws -> TranscriptionOutput {
         struct WhisperResponse: Decodable {
             let text: String
             let language: String?
@@ -144,11 +144,13 @@ final class OpenAIWhisperService: TranscriptionService, @unchecked Sendable {
         do {
             let response = try decoder.decode(WhisperResponse.self, from: data)
             Logger.shared.info("Transcription successful, \(response.text.count) characters", component: "WhisperService")
-            return TranscriptionResult(
+            return TranscriptionOutput(
                 text: response.text,
                 confidence: nil, // Whisper API doesn't return confidence in the standard response
                 language: response.language,
-                duration: response.duration
+                duration: response.duration,
+                source: .api,
+                model: configurationManager.configuration.whisperModel
             )
         } catch {
             Logger.shared.error("Failed to parse response: \(error)", component: "WhisperService")

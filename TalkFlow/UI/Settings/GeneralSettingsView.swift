@@ -179,7 +179,7 @@ struct ShortcutRecorderButton: NSViewRepresentable {
             stopMonitoring()
         }
 
-        @objc func buttonClicked() {
+        @MainActor @objc func buttonClicked() {
             parent.isRecording.toggle()
         }
 

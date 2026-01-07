@@ -122,6 +122,45 @@ Stored in macOS Keychain via KeychainService. Service identifier: `com.josephcam
 - ALWAYS run `./Scripts/build-app.sh` when making changes to verify the app compiles.
 - All features should include relevant debug logging for agents to look up.
 
+## CI Environment & Reproducing CI Failures
+
+CI runs on GitHub Actions with **Swift 6.2** on macOS 15 (via `swift-actions/setup-swift`). This should match local development.
+
+**To reproduce CI environment locally:**
+
+```bash
+# Check current Swift version
+swift --version
+
+# List available Xcode versions
+ls /Applications | grep Xcode
+
+# Switch to Xcode 16.4 (if installed) to match CI
+sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+
+# Verify switch worked
+swift --version  # Should show Swift 6.1.2
+
+# Now build/test - this should reproduce CI behavior
+swift build
+swift test
+
+# Switch back to your default Xcode
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+```
+
+**Common CI-only failures:**
+
+1. **Sendable/concurrency errors**: Swift 6.1.x is stricter than 6.2.x. Fix with `@preconcurrency import` for third-party modules that aren't Sendable-compliant.
+
+2. **Missing `@MainActor`**: Newer Swift may infer actor isolation that older versions require explicitly.
+
+3. **Different SDK behavior**: macOS SDK differences between Xcode versions can cause API availability issues.
+
+**If you don't have Xcode 16.4:**
+- Download from https://developer.apple.com/download/all/ (requires Apple Developer account)
+- Or update CI to use the Xcode version you have locally (update `.github/workflows/tests.yml`)
+
 ## UI/Styling Guidelines
 
 **IMPORTANT: Never use system-adaptive colors in UI code.** The app uses a light-only theme that must look correct regardless of system dark/light mode.

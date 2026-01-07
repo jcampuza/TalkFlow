@@ -25,6 +25,9 @@ let package = Package(
             ],
             resources: [
                 .process("Resources/Assets.xcassets")
+            ],
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
         .testTarget(

@@ -50,7 +50,7 @@ final class AudioCaptureService: @unchecked Sendable {
         self.configurationManager = configurationManager
     }
 
-    func requestMicrophoneAccess(completion: @escaping (Bool) -> Void) {
+    func requestMicrophoneAccess(completion: @escaping @Sendable (Bool) -> Void) {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
             completion(true)

@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import Observation
 
 /// Thread-safe buffer storage for audio capture
 /// This class is separate from AudioCaptureService to avoid MainActor isolation issues

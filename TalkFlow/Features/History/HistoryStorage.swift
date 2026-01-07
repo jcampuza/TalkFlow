@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import Observation
 
 /// Protocol for history storage operations, enabling testability
 protocol HistoryStorageProtocol: AnyObject, Sendable {

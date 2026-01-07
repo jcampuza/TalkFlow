@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import Observation
 
 /// Protocol for dictionary storage operations, enabling testability
 protocol DictionaryStorageProtocol: AnyObject, Sendable {

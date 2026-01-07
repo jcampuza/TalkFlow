@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// Errors that can occur when managing dictionary terms
 enum DictionaryError: LocalizedError, Equatable, Sendable {

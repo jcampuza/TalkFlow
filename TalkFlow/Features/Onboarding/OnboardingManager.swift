@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import Observation
 @preconcurrency import AppKit
 
 // Helper function to safely request accessibility prompt

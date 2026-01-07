@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 @Observable
 final class HistorySearcher: @unchecked Sendable {

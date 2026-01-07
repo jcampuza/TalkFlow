@@ -10,7 +10,11 @@ struct AddTermView: View {
     var body: some View {
         HStack(spacing: 8) {
             TextField("Add new term...", text: $newTerm)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .padding(8)
+                .background(DesignConstants.searchBarBackground)
+                .cornerRadius(6)
+                .foregroundColor(DesignConstants.primaryText)
                 .focused($isTextFieldFocused)
                 .disabled(isAtLimit)
                 .onSubmit {
@@ -22,11 +26,12 @@ struct AddTermView: View {
                     .font(.title2)
             }
             .buttonStyle(.plain)
-            .foregroundColor(canAdd ? .accentColor : .secondary)
+            .foregroundColor(canAdd ? .blue : DesignConstants.tertiaryText)
             .disabled(!canAdd)
             .help(isAtLimit ? "Dictionary limit reached (50 terms)" : "Add term")
         }
         .padding()
+        .background(Color.white)
     }
 
     private var canAdd: Bool {

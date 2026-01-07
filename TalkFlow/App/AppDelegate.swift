@@ -207,6 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false  // Keep window in memory for reopening
         window.delegate = self
+        window.appearance = NSAppearance(named: .aqua)  // Force light mode titlebar
         window.center()
         window.makeKeyAndOrderFront(nil)
 

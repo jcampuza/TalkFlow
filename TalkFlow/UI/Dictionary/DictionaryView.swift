@@ -13,33 +13,38 @@ struct DictionaryView: View {
                 addTerm(term)
             }
 
-            Divider()
+            Rectangle()
+                .fill(DesignConstants.dividerColor)
+                .frame(height: 1)
 
             // Search bar
             if !manager.terms.isEmpty {
                 HStack {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(DesignConstants.secondaryText)
 
                     TextField("Filter terms...", text: $searchText)
                         .textFieldStyle(.plain)
+                        .foregroundColor(DesignConstants.primaryText)
 
                     if !searchText.isEmpty {
                         Button(action: { searchText = "" }) {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
+                                .foregroundColor(DesignConstants.secondaryText)
                         }
                         .buttonStyle(.plain)
                     }
 
                     Text("\(manager.termCount)/50")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(DesignConstants.secondaryText)
                 }
                 .padding(12)
-                .background(Color(NSColor.controlBackgroundColor))
+                .background(DesignConstants.searchBarBackground)
 
-                Divider()
+                Rectangle()
+                    .fill(DesignConstants.dividerColor)
+                    .frame(height: 1)
             }
 
             // List or empty state
@@ -57,7 +62,9 @@ struct DictionaryView: View {
                                 onEdit: { newText in updateTerm(term, newText: newText) },
                                 onDelete: { deleteTerm(term) }
                             )
-                            Divider()
+                            Rectangle()
+                                .fill(DesignConstants.dividerColor)
+                                .frame(height: 1)
                                 .padding(.leading, 52)
                         }
                     }
@@ -65,7 +72,12 @@ struct DictionaryView: View {
                 }
             }
         }
+        .background(Color.white)
         .frame(minWidth: 400, minHeight: 300)
+        .task {
+            // Refresh terms when view appears to handle race condition during initialization
+            await manager.refreshTerms()
+        }
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -81,20 +93,21 @@ struct DictionaryView: View {
         VStack(spacing: 16) {
             Image(systemName: "text.book.closed")
                 .font(.system(size: 48))
-                .foregroundColor(.secondary)
+                .foregroundColor(DesignConstants.tertiaryText)
 
             Text("Custom Dictionary")
                 .font(.headline)
+                .foregroundColor(DesignConstants.primaryText)
 
             Text("Add specialized terms to improve transcription accuracy")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(DesignConstants.secondaryText)
                 .multilineTextAlignment(.center)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Examples:")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(DesignConstants.secondaryText)
 
                 HStack(spacing: 8) {
                     exampleChip("BLK")
@@ -112,30 +125,34 @@ struct DictionaryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+        .background(Color.white)
     }
 
     private var noResultsView: some View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 32))
-                .foregroundColor(.secondary)
+                .foregroundColor(DesignConstants.tertiaryText)
 
             Text("No Results")
                 .font(.headline)
+                .foregroundColor(DesignConstants.primaryText)
 
             Text("No terms match \"\(searchText)\"")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(DesignConstants.secondaryText)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white)
     }
 
     private func exampleChip(_ text: String) -> some View {
         Text(text)
             .font(.caption)
+            .foregroundColor(DesignConstants.primaryText)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color(NSColor.controlBackgroundColor))
+            .background(DesignConstants.searchBarBackground)
             .cornerRadius(4)
     }
 

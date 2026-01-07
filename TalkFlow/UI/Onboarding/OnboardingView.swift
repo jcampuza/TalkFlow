@@ -32,7 +32,9 @@ struct OnboardingView: View {
                 .padding(.bottom, 32)
         }
         .frame(width: 550, height: 450)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(Color.white)
+        .environment(\.colorScheme, .light)
+        .tint(DesignConstants.accentColor)
         .animation(.easeInOut(duration: 0.3), value: onboardingManager.currentStep)
     }
 
@@ -68,7 +70,7 @@ struct OnboardingView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+                .foregroundColor(DesignConstants.secondaryText)
             }
 
             Spacer()
@@ -109,12 +111,8 @@ struct OnboardingView: View {
     }
 
     private var continueButtonColor: Color {
-        switch onboardingManager.currentStep {
-        case .complete:
-            return .green
-        default:
-            return .accentColor
-        }
+        // All buttons use accent color
+        return DesignConstants.accentColor
     }
 
     private var shouldDisableContinue: Bool {
@@ -146,12 +144,12 @@ struct ProgressIndicatorView: View {
     }
 
     private func stepColor(for step: OnboardingManager.OnboardingStep) -> Color {
-        if step.rawValue < currentStep.rawValue {
-            return .green
-        } else if step == currentStep {
-            return .accentColor
+        if step.rawValue <= currentStep.rawValue {
+            // Current and completed steps use accent color
+            return DesignConstants.accentColor
         } else {
-            return Color.secondary.opacity(0.3)
+            // Future steps use gray
+            return DesignConstants.tertiaryText
         }
     }
 }
@@ -165,7 +163,7 @@ struct WelcomeStepView: View {
         VStack(spacing: 24) {
             Image(systemName: "bubble.left.fill")
                 .font(.system(size: 64))
-                .foregroundColor(.accentColor)
+                .foregroundColor(DesignConstants.accentColor)
                 .scaleEffect(isAnimating ? 1.1 : 1.0)
                 .animation(
                     Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true),
@@ -177,10 +175,11 @@ struct WelcomeStepView: View {
                 Text("Welcome to TalkFlow")
                     .font(.largeTitle)
                     .fontWeight(.bold)
+                    .foregroundColor(DesignConstants.primaryText)
 
                 Text("Turn your voice into text instantly")
                     .font(.title3)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(DesignConstants.secondaryText)
             }
 
             VStack(alignment: .leading, spacing: 16) {
@@ -203,15 +202,16 @@ struct FeatureRow: View {
         HStack(spacing: 16) {
             Image(systemName: icon)
                 .font(.system(size: 24))
-                .foregroundColor(.accentColor)
+                .foregroundColor(DesignConstants.accentColor)
                 .frame(width: 40)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.headline)
+                    .foregroundColor(DesignConstants.primaryText)
                 Text(description)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(DesignConstants.secondaryText)
             }
         }
     }
@@ -234,10 +234,11 @@ struct MicrophonePermissionStepView: View {
                 Text("Microphone Access")
                     .font(.largeTitle)
                     .fontWeight(.bold)
+                    .foregroundColor(DesignConstants.primaryText)
 
                 Text("TalkFlow needs access to your microphone to capture your voice for transcription.")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(DesignConstants.secondaryText)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 400)
             }
@@ -251,7 +252,7 @@ struct MicrophonePermissionStepView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(Color.accentColor)
+                        .background(DesignConstants.accentColor)
                         .cornerRadius(10)
                 }
                 .buttonStyle(.plain)
@@ -279,10 +280,11 @@ struct AccessibilityPermissionStepView: View {
                 Text("Accessibility Access")
                     .font(.largeTitle)
                     .fontWeight(.bold)
+                    .foregroundColor(DesignConstants.primaryText)
 
                 Text("TalkFlow needs accessibility access to detect keyboard shortcuts globally and paste transcribed text into any application.")
                     .font(.body)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(DesignConstants.secondaryText)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 400)
             }
@@ -297,14 +299,14 @@ struct AccessibilityPermissionStepView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 24)
                             .padding(.vertical, 12)
-                            .background(Color.accentColor)
+                            .background(DesignConstants.accentColor)
                             .cornerRadius(10)
                     }
                     .buttonStyle(.plain)
 
                     Text("System Settings will open. Find TalkFlow in the list and toggle it on.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(DesignConstants.secondaryText)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 350)
                 }
@@ -323,7 +325,7 @@ struct CompleteStepView: View {
         VStack(spacing: 24) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 64))
-                .foregroundColor(.green)
+                .foregroundColor(DesignConstants.accentColor)
                 .scaleEffect(isAnimating ? 1.0 : 0.5)
                 .opacity(isAnimating ? 1.0 : 0.0)
                 .animation(.spring(response: 0.5, dampingFraction: 0.6), value: isAnimating)
@@ -333,10 +335,11 @@ struct CompleteStepView: View {
                 Text("You're All Set!")
                     .font(.largeTitle)
                     .fontWeight(.bold)
+                    .foregroundColor(DesignConstants.primaryText)
 
                 Text("TalkFlow is ready to use")
                     .font(.title3)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(DesignConstants.secondaryText)
             }
 
             VStack(alignment: .leading, spacing: 16) {
@@ -360,11 +363,12 @@ struct TipRow: View {
                 .font(.headline)
                 .foregroundColor(.white)
                 .frame(width: 28, height: 28)
-                .background(Color.accentColor)
+                .background(DesignConstants.accentColor)
                 .clipShape(Circle())
 
             Text(text)
                 .font(.body)
+                .foregroundColor(DesignConstants.primaryText)
         }
     }
 }
@@ -378,17 +382,17 @@ struct PermissionIconView: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(isGranted ? Color.green.opacity(0.15) : Color.accentColor.opacity(0.15))
+                .fill(isGranted ? DesignConstants.accentColor.opacity(0.15) : DesignConstants.tertiaryText.opacity(0.2))
                 .frame(width: 100, height: 100)
 
             Image(systemName: iconName)
                 .font(.system(size: 40))
-                .foregroundColor(isGranted ? .green : .accentColor)
+                .foregroundColor(isGranted ? DesignConstants.accentColor : DesignConstants.secondaryText)
 
             if isGranted {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 24))
-                    .foregroundColor(.green)
+                    .foregroundColor(DesignConstants.accentColor)
                     .background(Color.white.clipShape(Circle()))
                     .offset(x: 35, y: 35)
             }
@@ -400,14 +404,14 @@ struct PermissionGrantedBadge: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
+                .foregroundColor(DesignConstants.accentColor)
             Text("Permission Granted")
                 .font(.headline)
-                .foregroundColor(.green)
+                .foregroundColor(DesignConstants.accentColor)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
-        .background(Color.green.opacity(0.15))
+        .background(DesignConstants.accentColor.opacity(0.15))
         .cornerRadius(20)
     }
 }

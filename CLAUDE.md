@@ -121,3 +121,17 @@ Stored in macOS Keychain via KeychainService. Service identifier: `com.josephcam
 - ALWAYS run `swift test` when making changes to verify tests pass.
 - ALWAYS run `./Scripts/build-app.sh` when making changes to verify the app compiles.
 - All features should include relevant debug logging for agents to look up.
+
+## UI/Styling Guidelines
+
+**IMPORTANT: Never use system-adaptive colors in UI code.** The app uses a light-only theme that must look correct regardless of system dark/light mode.
+
+- **NEVER** use: `.primary`, `.secondary`, `NSColor.controlBackgroundColor`, `NSColor.textColor`, `NSColor.labelColor`, `NSColor.separatorColor`, `NSColor.tertiaryLabelColor`, or any other system color that adapts to dark mode.
+- **ALWAYS** use colors from `DesignConstants` (defined in `TalkFlow/Shared/DesignConstants.swift`):
+  - Text: `DesignConstants.primaryText`, `.secondaryText`, `.tertiaryText`
+  - Backgrounds: `DesignConstants.sidebarBackground`, `.contentBackground`, `.searchBarBackground`, `.hoverBackground`, etc.
+  - Dividers: `DesignConstants.dividerColor`
+- When adding new UI elements, add any new colors to `DesignConstants.swift` rather than using inline Color values.
+- Use `Color.white` for content area backgrounds (this is an explicit value, not system-adaptive).
+- The main window uses `.environment(\.colorScheme, .light)` to force light mode for all system controls (Pickers, Toggles, etc.). This ensures they display correctly regardless of system appearance.
+- For NSView-based controls (like NSButton), use `attributedTitle` with explicit colors instead of `.title`.

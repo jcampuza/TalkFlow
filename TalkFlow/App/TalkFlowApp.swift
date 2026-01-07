@@ -5,14 +5,12 @@ struct TalkFlowApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // Menu bar apps should NOT use Window scenes - they auto-open on launch
-        // Main window is created programmatically via AppDelegate.showMainWindow()
+        // Menu bar app - main window is created programmatically via AppDelegate.showMainWindow()
+        // Settings is integrated into the main window sidebar
 
-        // Settings window for Cmd+, shortcut (doesn't auto-open)
+        // Empty Settings scene to satisfy SwiftUI but we handle Cmd+, in AppDelegate
         Settings {
-            SettingsWindow()
-                .environment(\.configurationManager, appDelegate.dependencyContainer.configurationManager)
-                .environment(\.historyStorage, appDelegate.dependencyContainer.historyStorage)
+            EmptyView()
         }
     }
 }

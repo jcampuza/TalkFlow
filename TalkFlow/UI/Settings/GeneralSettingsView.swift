@@ -10,6 +10,7 @@ struct GeneralSettingsView: View {
             GeneralSettingsContent(manager: manager, isRecordingShortcut: $isRecordingShortcut)
         } else {
             Text("Configuration not available")
+                .foregroundColor(DesignConstants.secondaryText)
         }
     }
 }
@@ -19,49 +20,100 @@ private struct GeneralSettingsContent: View {
     @Binding var isRecordingShortcut: Bool
 
     var body: some View {
-        Form {
-            Section {
-                HStack {
-                    Text("Trigger Shortcut")
-
-                    Spacer()
-
-                    ShortcutRecorderView(
-                        shortcut: $manager.configuration.triggerShortcut,
-                        isRecording: $isRecordingShortcut
-                    )
-                }
-
-                HStack {
-                    Text("Minimum Hold Duration")
-
-                    Spacer()
-
-                    Picker("", selection: $manager.configuration.minimumHoldDurationMs) {
-                        Text("100ms").tag(100)
-                        Text("200ms").tag(200)
-                        Text("300ms (Default)").tag(300)
-                        Text("400ms").tag(400)
-                        Text("500ms").tag(500)
+        VStack(alignment: .leading, spacing: 24) {
+            // Shortcuts section
+            SettingsSection(title: "Shortcuts") {
+                VStack(spacing: 0) {
+                    SettingsRow {
+                        Text("Trigger Shortcut")
+                            .foregroundColor(DesignConstants.primaryText)
+                        Spacer()
+                        ShortcutRecorderView(
+                            shortcut: $manager.configuration.triggerShortcut,
+                            isRecording: $isRecordingShortcut
+                        )
                     }
-                    .pickerStyle(.menu)
-                    .frame(width: 150)
+
+                    SettingsDivider()
+
+                    SettingsRow {
+                        Text("Minimum Hold Duration")
+                            .foregroundColor(DesignConstants.primaryText)
+                        Spacer()
+                        Picker("", selection: $manager.configuration.minimumHoldDurationMs) {
+                            Text("100ms").tag(100)
+                            Text("200ms").tag(200)
+                            Text("300ms (Default)").tag(300)
+                            Text("400ms").tag(400)
+                            Text("500ms").tag(500)
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 150)
+                    }
                 }
-            } header: {
-                Text("Shortcuts")
             }
 
-            Section {
-                Toggle("Launch at Login", isOn: .constant(false))
-                    .disabled(true) // TODO: Implement launch at login
-            } header: {
-                Text("Startup")
+            // Startup section
+            SettingsSection(title: "Startup") {
+                SettingsRow {
+                    Text("Launch at Login")
+                        .foregroundColor(DesignConstants.primaryText)
+                    Spacer()
+                    Toggle("", isOn: .constant(false))
+                        .labelsHidden()
+                        .disabled(true) // TODO: Implement launch at login
+                }
             }
+
+            Spacer()
         }
-        .formStyle(.grouped)
-        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+
+// MARK: - Reusable Settings Components
+
+struct SettingsSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(DesignConstants.primaryText)
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .background(DesignConstants.settingsSectionBackground)
+            .cornerRadius(8)
+        }
+    }
+}
+
+struct SettingsRow<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack {
+            content()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+}
+
+struct SettingsDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(DesignConstants.dividerColor)
+            .frame(height: 1)
+            .padding(.leading, 12)
+    }
+}
+
+// MARK: - Shortcut Recorder
 
 struct ShortcutRecorderView: View {
     @Binding var shortcut: ShortcutConfiguration
@@ -80,23 +132,34 @@ struct ShortcutRecorderButton: NSViewRepresentable {
     @Binding var shortcut: ShortcutConfiguration
     @Binding var isRecording: Bool
 
+    // Explicit text color for light theme
+    private static let textColor = NSColor(calibratedRed: 0.1, green: 0.1, blue: 0.1, alpha: 1.0)
+
     func makeNSView(context: Context) -> NSButton {
         let button = NSButton()
         button.bezelStyle = .rounded
         button.target = context.coordinator
         button.action = #selector(Coordinator.buttonClicked)
-        button.title = shortcut.displayName
+        setButtonTitle(button, title: shortcut.displayName)
         return button
     }
 
     func updateNSView(_ nsView: NSButton, context: Context) {
         if isRecording {
-            nsView.title = "Press a key..."
+            setButtonTitle(nsView, title: "Press a key...")
             context.coordinator.startMonitoring()
         } else {
-            nsView.title = shortcut.displayName
+            setButtonTitle(nsView, title: shortcut.displayName)
             context.coordinator.stopMonitoring()
         }
+    }
+
+    private func setButtonTitle(_ button: NSButton, title: String) {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: Self.textColor,
+            .font: NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        ]
+        button.attributedTitle = NSAttributedString(string: title, attributes: attributes)
     }
 
     func makeCoordinator() -> Coordinator {

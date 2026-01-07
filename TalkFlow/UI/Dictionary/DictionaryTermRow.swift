@@ -26,13 +26,14 @@ struct DictionaryTermRow: View {
             if isEditing {
                 TextField("Term", text: $editText, onCommit: commitEdit)
                     .textFieldStyle(.plain)
+                    .foregroundColor(DesignConstants.primaryText)
                     .focused($isTextFieldFocused)
                     .onExitCommand {
                         cancelEdit()
                     }
             } else {
                 Text(term.term)
-                    .foregroundColor(term.isEnabled ? .primary : .secondary)
+                    .foregroundColor(term.isEnabled ? DesignConstants.primaryText : DesignConstants.secondaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -42,19 +43,19 @@ struct DictionaryTermRow: View {
 
             Spacer()
 
-            // Delete button (visible on hover)
-            if isHovering && !isEditing {
-                Button(action: onDelete) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Delete term")
+            // Delete button (always present, opacity changes on hover)
+            Button(action: onDelete) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(DesignConstants.secondaryText)
             }
+            .buttonStyle(.plain)
+            .help("Delete term")
+            .opacity(isHovering && !isEditing ? 1 : 0)
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
-        .background(isHovering ? Color(NSColor.controlBackgroundColor) : Color.clear)
+        .background(isHovering ? DesignConstants.hoverBackground : Color.clear)
+        .contentShape(Rectangle())
         .cornerRadius(6)
         .onHover { hovering in
             isHovering = hovering

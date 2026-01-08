@@ -44,8 +44,8 @@ TalkFlow is a native macOS menu bar app that transforms your voice into text usi
 
 ```bash
 # Clone the repository
-git clone https://github.com/jcampuza/voice-dictation-ai-macos.git
-cd voice-dictation-ai-macos/TalkFlow
+git clone https://github.com/jcampuza/TalkFlow.git
+cd TalkFlow
 
 # Build the app
 ./Scripts/build-app.sh release
@@ -85,11 +85,11 @@ TalkFlow supports on-device transcription using [WhisperKit](https://github.com/
 
 ### Available Models
 
-| Model | Size | Quality | Best For |
-|-------|------|---------|----------|
-| Tiny | ~40 MB | Basic | Quick notes, simple dictation |
-| Small | ~250 MB | Good | General use, balanced speed/quality |
-| Large v3 Turbo | ~950 MB | Best | Accuracy-critical work, complex vocabulary |
+| Model | Quality | Best For |
+|-------|---------|----------|
+| Tiny | Basic | Quick notes, simple dictation |
+| Small | Good | General use, balanced speed/quality |
+| Large v3 Turbo | Best | Accuracy-critical work, complex vocabulary |
 
 ### First-Time Setup
 

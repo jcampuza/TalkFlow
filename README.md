@@ -14,12 +14,17 @@
 
 ---
 
-TalkFlow is a native macOS menu bar app that transforms your voice into text using OpenAI's Whisper API. Hold down a trigger key (default: Right Command), speak, and release—your transcription is automatically pasted into whatever app you're using.
+TalkFlow is a native macOS menu bar app that transforms your voice into text using OpenAI's Whisper. Choose between cloud-based transcription via the OpenAI API or completely private, on-device transcription using local Whisper models—no internet required. Hold down a trigger key (default: Right Command), speak, and release—your transcription is automatically pasted into whatever app you're using.
+
+<p align="center">
+  <img src="assets/app-screenshot.png" alt="TalkFlow App" width="600">
+</p>
 
 ## Features
 
 - **Press-and-hold activation** — Hold the trigger key to record, release to transcribe. No clicking required.
 - **Instant paste** — Transcribed text is automatically inserted into your focused input field.
+- **Local or cloud transcription** — Use on-device Whisper models for free, private transcription, or the OpenAI API for cloud-based processing.
 - **Configurable shortcuts** — Remap the trigger to any modifier key, single key, or key combination.
 - **Smart audio processing** — Voice activity detection and silence removal for clean, efficient transcriptions.
 - **History with search** — All transcriptions are saved locally with full-text search.
@@ -30,7 +35,8 @@ TalkFlow is a native macOS menu bar app that transforms your voice into text usi
 ## Requirements
 
 - macOS 15 (Sequoia) or later
-- OpenAI API key with access to the Whisper API
+- **For cloud transcription:** OpenAI API key with access to the Whisper API
+- **For local transcription:** Apple Silicon Mac recommended (Intel Macs supported but slower)
 
 ## Installation
 
@@ -60,8 +66,47 @@ Or build and launch in one step:
 2. **Grant permissions** — You'll be prompted for:
    - **Accessibility**: Required for global shortcuts and text insertion
    - **Microphone**: Required for audio capture
-3. **Add your API key** — Open Settings and enter your OpenAI API key.
+3. **Choose your transcription mode:**
+   - **Local (recommended)** — Download a Whisper model and transcribe entirely on-device. Free and private.
+   - **Cloud** — Enter your OpenAI API key to use the Whisper API.
 4. **Start dictating** — Hold Right Command (or your configured trigger), speak, and release.
+
+<p align="center">
+  <img src="assets/app-settings-screenshot.png" alt="TalkFlow Settings" width="600">
+</p>
+
+## Local Models
+
+TalkFlow supports on-device transcription using [WhisperKit](https://github.com/argmaxinc/WhisperKit), which runs OpenAI's Whisper models locally via Apple's Core ML. This means:
+
+- **Completely free** — No API costs, transcribe as much as you want
+- **Private** — Audio never leaves your device
+- **Works offline** — No internet connection required after model download
+
+### Available Models
+
+| Model | Size | Quality | Best For |
+|-------|------|---------|----------|
+| Tiny | ~40 MB | Basic | Quick notes, simple dictation |
+| Small | ~250 MB | Good | General use, balanced speed/quality |
+| Large v3 Turbo | ~950 MB | Best | Accuracy-critical work, complex vocabulary |
+
+### First-Time Setup
+
+> **Note:** The first transcription after downloading a model may take 10-30 seconds as the model compiles and warms up on your specific hardware. This is a one-time process—subsequent transcriptions are fast (typically under 2 seconds for short recordings).
+
+To use local transcription:
+
+1. Open **Settings** → **Transcription**
+2. Select **Local** as your transcription mode
+3. Choose a model and click **Download**
+4. Once downloaded, the model is ready to use
+
+### Performance Tips
+
+- **Apple Silicon Macs** deliver the best performance with local models
+- **Larger models** produce better results but require more memory and processing time
+- **Keep the model loaded** — TalkFlow keeps the model in memory between transcriptions for faster response times
 
 ## Usage
 
@@ -88,13 +133,15 @@ Access settings from the menu bar icon → Settings:
 
 - **Shortcut** — Configure your trigger key
 - **Audio** — Select input device, adjust silence threshold
-- **Transcription** — API key, model selection, language preference
+- **Transcription** — Choose local or cloud mode, download/manage models, set language preference
 - **Output** — Toggle punctuation stripping
+- **Dictionary** — Add custom words and phrases to improve transcription accuracy
 - **Appearance** — Indicator visibility and position
 
 ## Data Storage
 
 - **Transcription history**: `~/Library/Application Support/TalkFlow/transcriptions.sqlite`
+- **Local models**: `~/Library/Containers/com.josephcampuzano.TalkFlow/Data/Documents/huggingface/`
 - **Logs**: `~/Library/Logs/TalkFlow/talkflow.log`
 - **API key**: macOS Keychain (never stored in plain text)
 
@@ -120,6 +167,7 @@ swift test
 - **SwiftUI** for all UI components
 - **AVFoundation** for audio capture
 - **Accelerate/vDSP** for signal processing
+- **WhisperKit** for on-device Whisper transcription via Core ML
 - **GRDB.swift** for SQLite storage with full-text search
 
 ## License

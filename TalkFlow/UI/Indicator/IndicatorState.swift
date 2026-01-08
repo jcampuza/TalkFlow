@@ -137,8 +137,9 @@ final class IndicatorStateManager: @unchecked Sendable {
         hideTimer?.invalidate()
         hideTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                // Don't hide if we're in a persistent state
-                if self?.state.isPersistent == false {
+                // Only hide if we're still in a transient state (success, error, noSpeech)
+                // This prevents hiding if a new recording has started since the timer was scheduled
+                if self?.state.isTransient == true {
                     self?.state = .idle
                 }
             }

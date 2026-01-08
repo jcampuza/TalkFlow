@@ -88,4 +88,19 @@ final class HistoryStorageTests: XCTestCase {
         fetched = await storage.fetchAll()
         XCTAssertEqual(fetched.count, 0)
     }
+
+    func testSaveEmptyRecordSkipped() async throws {
+        try await storage.save(TranscriptionRecord(text: ""))
+
+        let fetched = await storage.fetchAll()
+        XCTAssertEqual(fetched.count, 0, "Empty records should not be saved")
+    }
+
+    func testSaveWhitespaceOnlyRecordSkipped() async throws {
+        try await storage.save(TranscriptionRecord(text: "   "))
+        try await storage.save(TranscriptionRecord(text: "\n\t"))
+
+        let fetched = await storage.fetchAll()
+        XCTAssertEqual(fetched.count, 0, "Whitespace-only records should not be saved")
+    }
 }

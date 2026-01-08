@@ -1,92 +1,98 @@
 import SwiftUI
 
 struct DictionaryView: View {
-    var manager: DictionaryManager
-    @State private var searchText: String = ""
-    @State private var errorMessage: String?
-    @State private var showingError = false
+    // Initialize ViewModel in init to avoid flicker
+    @State private var viewModel: DictionaryViewModel
+
+    init(manager: DictionaryManager) {
+        _viewModel = State(initialValue: DictionaryViewModel(manager: manager))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             // Add term input
-            AddTermView(isAtLimit: manager.isAtLimit) { term in
-                addTerm(term)
+            AddTermView(isAtLimit: viewModel.isAtLimit) { term in
+                viewModel.addTerm(term)
             }
 
             Rectangle()
                 .fill(DesignConstants.dividerColor)
                 .frame(height: 1)
 
-            // Search bar
-            if !manager.terms.isEmpty {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(DesignConstants.secondaryText)
-
-                    TextField("Filter terms...", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .foregroundColor(DesignConstants.primaryText)
-
-                    if !searchText.isEmpty {
-                        Button(action: { searchText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(DesignConstants.secondaryText)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Text("\(manager.termCount)/50")
-                        .font(.caption)
-                        .foregroundColor(DesignConstants.secondaryText)
-                }
-                .padding(12)
-                .background(DesignConstants.searchBarBackground)
+            // Search bar (only shown when there are terms)
+            if !viewModel.isEmpty {
+                searchBar
 
                 Rectangle()
                     .fill(DesignConstants.dividerColor)
                     .frame(height: 1)
             }
 
-            // List or empty state
-            if manager.terms.isEmpty {
+            // Content: list, empty state, or no results
+            if viewModel.isEmpty {
                 emptyStateView
-            } else if filteredTerms.isEmpty {
+            } else if viewModel.hasNoSearchResults {
                 noResultsView
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(filteredTerms) { term in
-                            DictionaryTermRow(
-                                term: term,
-                                onToggle: { toggleTerm(term) },
-                                onEdit: { newText in updateTerm(term, newText: newText) },
-                                onDelete: { deleteTerm(term) }
-                            )
-                            Rectangle()
-                                .fill(DesignConstants.dividerColor)
-                                .frame(height: 1)
-                                .padding(.leading, 52)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
+                termsList
             }
         }
         .background(Color.white)
         .frame(minWidth: 400, minHeight: 300)
-        .task {
-            // Refresh terms when view appears to handle race condition during initialization
-            await manager.refreshTerms()
-        }
-        .alert("Error", isPresented: $showingError) {
-            Button("OK", role: .cancel) {}
+        .alert("Error", isPresented: $viewModel.showingError) {
+            Button("OK", role: .cancel) {
+                viewModel.dismissError()
+            }
         } message: {
-            Text(errorMessage ?? "An unknown error occurred")
+            Text(viewModel.errorMessage ?? "An unknown error occurred")
         }
     }
 
-    private var filteredTerms: [DictionaryTerm] {
-        manager.filterTerms(query: searchText)
+    // MARK: - Subviews
+
+    private var searchBar: some View {
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(DesignConstants.secondaryText)
+
+            TextField("Filter terms...", text: $viewModel.searchText)
+                .textFieldStyle(.plain)
+                .foregroundColor(DesignConstants.primaryText)
+
+            if !viewModel.searchText.isEmpty {
+                Button(action: { viewModel.clearSearch() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(DesignConstants.secondaryText)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Text(viewModel.termCountLabel)
+                .font(.caption)
+                .foregroundColor(DesignConstants.secondaryText)
+        }
+        .padding(12)
+        .background(DesignConstants.searchBarBackground)
+    }
+
+    private var termsList: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(viewModel.filteredTerms) { term in
+                    DictionaryTermRow(
+                        term: term,
+                        onToggle: { viewModel.toggleTerm(term) },
+                        onEdit: { newText in viewModel.updateTerm(term, newText: newText) },
+                        onDelete: { viewModel.deleteTerm(term) }
+                    )
+                    Rectangle()
+                        .fill(DesignConstants.dividerColor)
+                        .frame(height: 1)
+                        .padding(.leading, 52)
+                }
+            }
+            .padding(.vertical, 4)
+        }
     }
 
     private var emptyStateView: some View {
@@ -138,7 +144,7 @@ struct DictionaryView: View {
                 .font(.headline)
                 .foregroundColor(DesignConstants.primaryText)
 
-            Text("No terms match \"\(searchText)\"")
+            Text("No terms match \"\(viewModel.searchText)\"")
                 .font(.subheadline)
                 .foregroundColor(DesignConstants.secondaryText)
         }
@@ -154,60 +160,5 @@ struct DictionaryView: View {
             .padding(.vertical, 4)
             .background(DesignConstants.searchBarBackground)
             .cornerRadius(4)
-    }
-
-    // MARK: - Actions
-
-    private func addTerm(_ term: String) {
-        Task {
-            do {
-                try await manager.addTerm(term)
-            } catch let error as DictionaryError {
-                await MainActor.run { showError(error.localizedDescription) }
-            } catch {
-                await MainActor.run { showError(error.localizedDescription) }
-            }
-        }
-    }
-
-    private func updateTerm(_ term: DictionaryTerm, newText: String) {
-        Task {
-            do {
-                try await manager.updateTerm(term, newText: newText)
-            } catch let error as DictionaryError {
-                await MainActor.run { showError(error.localizedDescription) }
-            } catch {
-                await MainActor.run { showError(error.localizedDescription) }
-            }
-        }
-    }
-
-    private func toggleTerm(_ term: DictionaryTerm) {
-        Task {
-            do {
-                try await manager.toggleTerm(term)
-            } catch let error as DictionaryError {
-                await MainActor.run { showError(error.localizedDescription) }
-            } catch {
-                await MainActor.run { showError(error.localizedDescription) }
-            }
-        }
-    }
-
-    private func deleteTerm(_ term: DictionaryTerm) {
-        Task {
-            do {
-                try await manager.deleteTerm(term)
-            } catch let error as DictionaryError {
-                await MainActor.run { showError(error.localizedDescription) }
-            } catch {
-                await MainActor.run { showError(error.localizedDescription) }
-            }
-        }
-    }
-
-    private func showError(_ message: String?) {
-        errorMessage = message
-        showingError = true
     }
 }

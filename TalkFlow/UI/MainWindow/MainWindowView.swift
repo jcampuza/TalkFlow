@@ -60,7 +60,7 @@ struct MainWindowView: View {
             // Content area with inset styling
             contentAreaView
         }
-        .frame(minWidth: 600, minHeight: 400)
+        .frame(minWidth: 900, minHeight: 600)
         .background(DesignConstants.sidebarBackground)
         .environment(\.colorScheme, .light)
         .tint(DesignConstants.accentColor)  // Apply brand accent to system controls
@@ -617,7 +617,7 @@ struct MainWindowView_Previews: PreviewProvider {
         MainWindowView(onboardingManager: OnboardingManager())
             .environment(\.historyStorage, HistoryStorage())
             .environment(\.configurationManager, ConfigurationManager())
-            .frame(width: 800, height: 600)
+            .frame(width: 900, height: 600)
     }
 }
 #endif

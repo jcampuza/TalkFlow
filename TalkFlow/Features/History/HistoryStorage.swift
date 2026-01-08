@@ -131,10 +131,22 @@ final class HistoryStorage: HistoryStorageProtocol, @unchecked Sendable {
             Logger.shared.info("Database migration: added source, model, metadata columns", component: "HistoryStorage")
         }
 
+        // Clean up empty transcription records that were accidentally saved
+        migrator.registerMigration("cleanupEmptyRecords") { db in
+            try db.execute(sql: "DELETE FROM transcriptions WHERE TRIM(text) = ''")
+            Logger.shared.info("Database migration: cleaned up empty transcription records", component: "HistoryStorage")
+        }
+
         try migrator.migrate(dbQueue!)
     }
 
     func save(_ record: TranscriptionRecord) async throws {
+        // Skip empty transcriptions
+        guard !record.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            Logger.shared.debug("Skipping save for empty transcription record", component: "HistoryStorage")
+            return
+        }
+
         try await dbQueue?.write { db in
             try record.insert(db)
         }

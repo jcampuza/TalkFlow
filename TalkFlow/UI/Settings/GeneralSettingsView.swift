@@ -41,6 +41,8 @@ private struct GeneralSettingsContent: View {
                             .foregroundColor(DesignConstants.primaryText)
                         Spacer()
                         Picker("", selection: $manager.configuration.minimumHoldDurationMs) {
+                            Text("Instant").tag(0)
+                            Text("50ms").tag(50)
                             Text("100ms").tag(100)
                             Text("200ms").tag(200)
                             Text("300ms (Default)").tag(300)

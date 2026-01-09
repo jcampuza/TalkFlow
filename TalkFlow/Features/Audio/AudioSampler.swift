@@ -1,5 +1,7 @@
 import Foundation
 @preconcurrency import AVFoundation
+import CoreAudio
+import AudioToolbox
 
 /// Simple audio sampler for testing microphone input
 /// Records up to 10 seconds and plays it back
@@ -52,6 +54,11 @@ final class AudioSampler: @unchecked Sendable {
         }
 
         let inputNode = engine.inputNode
+
+        // Configure input device if specified
+        if let deviceUID = configurationManager.configuration.inputDeviceUID {
+            configureInputDevice(uid: deviceUID, inputNode: inputNode)
+        }
 
         // Enable voice processing (voice isolation) if configured
         if configurationManager.configuration.voiceIsolationEnabled {
@@ -276,6 +283,81 @@ final class AudioSampler: @unchecked Sendable {
 
         // Normalize to 0-1 range
         return max(0, min(1, (db + 60) / 60))
+    }
+
+    // MARK: - Input Device Configuration
+
+    private nonisolated func configureInputDevice(uid: String, inputNode: AVAudioInputNode) {
+        // Get the AudioDeviceID from the UID
+        guard let deviceID = getAudioDeviceID(forUID: uid) else {
+            Logger.shared.warning("Could not find audio device with UID: \(uid)", component: "AudioSampler")
+            return
+        }
+
+        // Get the underlying audio unit from the input node
+        let audioUnit = inputNode.audioUnit
+        guard let unit = audioUnit else {
+            Logger.shared.warning("Could not get audio unit from input node", component: "AudioSampler")
+            return
+        }
+
+        // Set the input device on the audio unit
+        var deviceIDValue = deviceID
+        let status = AudioUnitSetProperty(
+            unit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &deviceIDValue,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+
+        if status == noErr {
+            Logger.shared.info("Successfully configured input device for sampler: \(uid) (ID: \(deviceID))", component: "AudioSampler")
+        } else {
+            Logger.shared.error("Failed to set input device for sampler, OSStatus: \(status)", component: "AudioSampler")
+        }
+    }
+
+    /// Convert a device UID string to an AudioDeviceID
+    private nonisolated func getAudioDeviceID(forUID uid: String) -> AudioDeviceID? {
+        var deviceID: AudioDeviceID = 0
+        var uidCFString: CFString = uid as CFString
+
+        var propertyAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDeviceForUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        // Use withUnsafeMutablePointer to get stable pointers for the translation
+        let status = withUnsafeMutablePointer(to: &uidCFString) { uidPointer in
+            withUnsafeMutablePointer(to: &deviceID) { devicePointer in
+                var translation = AudioValueTranslation(
+                    mInputData: UnsafeMutableRawPointer(uidPointer),
+                    mInputDataSize: UInt32(MemoryLayout<CFString>.size),
+                    mOutputData: UnsafeMutableRawPointer(devicePointer),
+                    mOutputDataSize: UInt32(MemoryLayout<AudioDeviceID>.size)
+                )
+
+                var dataSize = UInt32(MemoryLayout<AudioValueTranslation>.size)
+                return AudioObjectGetPropertyData(
+                    AudioObjectID(kAudioObjectSystemObject),
+                    &propertyAddress,
+                    0,
+                    nil,
+                    &dataSize,
+                    &translation
+                )
+            }
+        }
+
+        if status == noErr && deviceID != kAudioDeviceUnknown {
+            return deviceID
+        }
+
+        Logger.shared.debug("Failed to translate UID '\(uid)' to device ID, status: \(status)", component: "AudioSampler")
+        return nil
     }
 }
 

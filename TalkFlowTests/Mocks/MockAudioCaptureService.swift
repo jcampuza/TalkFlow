@@ -5,10 +5,10 @@ final class MockAudioCaptureService: ObservableObject {
     var isRecording = false
     var audioLevel: Float = 0
 
-    private var mockAudioData: Data?
+    private var mockCapturedAudio: CapturedAudio?
 
-    func setMockAudioData(_ data: Data) {
-        mockAudioData = data
+    func setMockAudioData(_ data: Data, sampleRate: Double = 44100) {
+        mockCapturedAudio = CapturedAudio(data: data, sampleRate: sampleRate)
     }
 
     func requestMicrophoneAccess(completion: @escaping (Bool) -> Void) {
@@ -19,8 +19,8 @@ final class MockAudioCaptureService: ObservableObject {
         isRecording = true
     }
 
-    func stopRecording() -> Data {
+    func stopRecording() -> CapturedAudio {
         isRecording = false
-        return mockAudioData ?? Data()
+        return mockCapturedAudio ?? .empty
     }
 }

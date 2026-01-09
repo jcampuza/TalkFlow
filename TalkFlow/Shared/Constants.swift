@@ -13,9 +13,6 @@ enum Constants {
     }
 
     enum Audio {
-        static let defaultSilenceThresholdDb: Float = -40.0
-        static let defaultNoiseGateThresholdDb: Float = -50.0
-        static let sampleRate: Double = 44100
         static let bufferSize: UInt32 = 4096
     }
 

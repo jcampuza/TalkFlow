@@ -10,7 +10,7 @@ final class TestMockAudioCaptureService {
     var audioLevel: Float = 0
     var startRecordingCalled = false
     var stopRecordingCalled = false
-    var mockAudioData = Data(repeating: 0, count: 1000)
+    var mockCapturedAudio = CapturedAudio(data: Data(repeating: 0, count: 1000), sampleRate: 44100)
 
     func requestMicrophoneAccess(completion: @escaping (Bool) -> Void) {
         completion(true)
@@ -21,10 +21,10 @@ final class TestMockAudioCaptureService {
         isRecording = true
     }
 
-    func stopRecording() -> Data {
+    func stopRecording() -> CapturedAudio {
         stopRecordingCalled = true
         isRecording = false
-        return mockAudioData
+        return mockCapturedAudio
     }
 }
 
@@ -33,7 +33,7 @@ final class TestMockAudioCaptureService {
 final class TestMockAudioProcessor {
     var mockResult = ProcessedAudioResult(audioData: Data(repeating: 0, count: 100), isEmpty: false)
 
-    func process(_ rawAudioData: Data) async throws -> ProcessedAudioResult {
+    func process(_ capturedAudio: CapturedAudio) async throws -> ProcessedAudioResult {
         return mockResult
     }
 }

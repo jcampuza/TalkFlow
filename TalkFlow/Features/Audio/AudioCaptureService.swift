@@ -1,5 +1,15 @@
 import Foundation
-import AVFoundation
+@preconcurrency import AVFoundation
+import CoreAudio
+import AudioToolbox
+
+/// Result of audio capture containing raw PCM data and the sample rate
+struct CapturedAudio: Sendable {
+    let data: Data
+    let sampleRate: Double
+
+    static let empty = CapturedAudio(data: Data(), sampleRate: 44100)
+}
 
 /// Thread-safe buffer storage for audio capture
 /// This class is separate from AudioCaptureService to avoid MainActor isolation issues
@@ -40,6 +50,7 @@ final class AudioCaptureService: @unchecked Sendable {
     private var audioEngine: AVAudioEngine?
     private var inputNode: AVAudioInputNode?
     private let bufferStorage = AudioBufferStorage()
+    private var capturedSampleRate: Double = 44100
 
     @MainActor var audioLevel: Float = 0
     @MainActor var isRecording = false
@@ -99,6 +110,10 @@ final class AudioCaptureService: @unchecked Sendable {
 
         let inputFormat = inputNode!.outputFormat(forBus: 0)
 
+        // Store the actual sample rate from the input device
+        capturedSampleRate = inputFormat.sampleRate
+        Logger.shared.info("Input device sample rate: \(capturedSampleRate) Hz", component: "AudioCapture")
+
         // CRITICAL: Install tap using a nonisolated static function
         // The closure MUST be defined in a nonisolated context to avoid
         // inheriting MainActor isolation, which would crash when called
@@ -135,9 +150,9 @@ final class AudioCaptureService: @unchecked Sendable {
     }
 
     @MainActor
-    func stopRecording() -> Data {
+    func stopRecording() -> CapturedAudio {
         guard isRecording else {
-            return Data()
+            return .empty
         }
 
         stopLevelMonitoring()
@@ -151,17 +166,90 @@ final class AudioCaptureService: @unchecked Sendable {
 
         // Convert buffers to raw PCM data
         let rawData = convertBuffersToData()
+        let sampleRate = capturedSampleRate
         bufferStorage.clear()
 
-        Logger.shared.info("Audio capture stopped, captured \(rawData.count) bytes", component: "AudioCapture")
+        Logger.shared.info("Audio capture stopped, captured \(rawData.count) bytes at \(sampleRate) Hz", component: "AudioCapture")
 
-        return rawData
+        return CapturedAudio(data: rawData, sampleRate: sampleRate)
     }
 
     private nonisolated func configureInputDevice(uid: String) {
-        // Note: Setting specific input device requires more complex AudioUnit configuration
-        // For now, we'll use the system default
-        Logger.shared.debug("Input device configuration requested: \(uid)", component: "AudioCapture")
+        guard let inputNode = inputNode else {
+            Logger.shared.warning("Cannot configure input device: inputNode is nil", component: "AudioCapture")
+            return
+        }
+
+        // Get the AudioDeviceID from the UID
+        guard let deviceID = getAudioDeviceID(forUID: uid) else {
+            Logger.shared.warning("Could not find audio device with UID: \(uid)", component: "AudioCapture")
+            return
+        }
+
+        // Get the underlying audio unit from the input node
+        let audioUnit = inputNode.audioUnit
+        guard let unit = audioUnit else {
+            Logger.shared.warning("Could not get audio unit from input node", component: "AudioCapture")
+            return
+        }
+
+        // Set the input device on the audio unit
+        var deviceIDValue = deviceID
+        let status = AudioUnitSetProperty(
+            unit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &deviceIDValue,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+
+        if status == noErr {
+            Logger.shared.info("Successfully configured input device: \(uid) (ID: \(deviceID))", component: "AudioCapture")
+        } else {
+            Logger.shared.error("Failed to set input device, OSStatus: \(status)", component: "AudioCapture")
+        }
+    }
+
+    /// Convert a device UID string to an AudioDeviceID
+    private nonisolated func getAudioDeviceID(forUID uid: String) -> AudioDeviceID? {
+        var deviceID: AudioDeviceID = 0
+        var uidCFString: CFString = uid as CFString
+
+        var propertyAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDeviceForUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        // Use withUnsafeMutablePointer to get stable pointers for the translation
+        let status = withUnsafeMutablePointer(to: &uidCFString) { uidPointer in
+            withUnsafeMutablePointer(to: &deviceID) { devicePointer in
+                var translation = AudioValueTranslation(
+                    mInputData: UnsafeMutableRawPointer(uidPointer),
+                    mInputDataSize: UInt32(MemoryLayout<CFString>.size),
+                    mOutputData: UnsafeMutableRawPointer(devicePointer),
+                    mOutputDataSize: UInt32(MemoryLayout<AudioDeviceID>.size)
+                )
+
+                var dataSize = UInt32(MemoryLayout<AudioValueTranslation>.size)
+                return AudioObjectGetPropertyData(
+                    AudioObjectID(kAudioObjectSystemObject),
+                    &propertyAddress,
+                    0,
+                    nil,
+                    &dataSize,
+                    &translation
+                )
+            }
+        }
+
+        if status == noErr && deviceID != kAudioDeviceUnknown {
+            return deviceID
+        }
+
+        Logger.shared.debug("Failed to translate UID '\(uid)' to device ID, status: \(status)", component: "AudioCapture")
+        return nil
     }
 
     /// Copy an audio buffer - static so it can be called from the audio tap without capturing self

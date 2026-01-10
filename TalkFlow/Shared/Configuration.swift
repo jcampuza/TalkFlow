@@ -17,6 +17,7 @@ struct AppConfiguration: Codable, Sendable {
     var silenceThresholdDb: Float = -40.0
     var noiseGateThresholdDb: Float = -50.0
     var voiceIsolationEnabled: Bool = true
+    var bypassAudioProcessing: Bool = false  // When true, skips noise gate and VAD
 
     // Recording limits
     var maxRecordingDurationSeconds: Int = 120
@@ -46,6 +47,7 @@ struct AppConfiguration: Codable, Sendable {
         case silenceThresholdDb
         case noiseGateThresholdDb
         case voiceIsolationEnabled
+        case bypassAudioProcessing
         case maxRecordingDurationSeconds
         case warningDurationSeconds
         case whisperModel
@@ -70,6 +72,7 @@ struct AppConfiguration: Codable, Sendable {
         silenceThresholdDb = try container.decodeIfPresent(Float.self, forKey: .silenceThresholdDb) ?? -40.0
         noiseGateThresholdDb = try container.decodeIfPresent(Float.self, forKey: .noiseGateThresholdDb) ?? -50.0
         voiceIsolationEnabled = try container.decodeIfPresent(Bool.self, forKey: .voiceIsolationEnabled) ?? true
+        bypassAudioProcessing = try container.decodeIfPresent(Bool.self, forKey: .bypassAudioProcessing) ?? false
         maxRecordingDurationSeconds = try container.decodeIfPresent(Int.self, forKey: .maxRecordingDurationSeconds) ?? 120
         warningDurationSeconds = try container.decodeIfPresent(Int.self, forKey: .warningDurationSeconds) ?? 60
         whisperModel = try container.decodeIfPresent(String.self, forKey: .whisperModel) ?? "whisper-1"
@@ -95,6 +98,7 @@ struct AppConfiguration: Codable, Sendable {
         try container.encode(silenceThresholdDb, forKey: .silenceThresholdDb)
         try container.encode(noiseGateThresholdDb, forKey: .noiseGateThresholdDb)
         try container.encode(voiceIsolationEnabled, forKey: .voiceIsolationEnabled)
+        try container.encode(bypassAudioProcessing, forKey: .bypassAudioProcessing)
         try container.encode(maxRecordingDurationSeconds, forKey: .maxRecordingDurationSeconds)
         try container.encode(warningDurationSeconds, forKey: .warningDurationSeconds)
         try container.encode(whisperModel, forKey: .whisperModel)

@@ -237,13 +237,13 @@ final class ShortcutManager: KeyEventMonitorDelegate {
         guard isRecording else { return }
 
         let recordingDuration = recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
-        let rawAudio = audioCaptureService.stopRecording()
+        let capturedAudio = audioCaptureService.stopRecording()
         isRecording = false
 
-        Logger.shared.info("Recording stopped, duration: \(String(format: "%.1f", recordingDuration))s", component: "ShortcutManager")
+        Logger.shared.info("Recording stopped, duration: \(String(format: "%.1f", recordingDuration))s, sample rate: \(capturedAudio.sampleRate) Hz", component: "ShortcutManager")
 
         // Process the audio
-        processAudio(rawAudio, duration: recordingDuration)
+        processAudio(capturedAudio, duration: recordingDuration)
     }
 
     private func cancelRecording() {
@@ -268,7 +268,7 @@ final class ShortcutManager: KeyEventMonitorDelegate {
 
     // MARK: - Audio Processing
 
-    private func processAudio(_ rawAudio: Data, duration: TimeInterval) {
+    private func processAudio(_ capturedAudio: CapturedAudio, duration: TimeInterval) {
         isProcessing = true
         indicatorStateManager.state = .processing
 
@@ -283,7 +283,7 @@ final class ShortcutManager: KeyEventMonitorDelegate {
         Task {
             do {
                 // Process audio (VAD, noise gate, encoding)
-                let processedResult = try await processor.process(rawAudio)
+                let processedResult = try await processor.process(capturedAudio)
 
                 if processedResult.isEmpty {
                     // No speech detected

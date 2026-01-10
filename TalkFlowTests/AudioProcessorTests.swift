@@ -18,7 +18,8 @@ final class AudioProcessorTests: XCTestCase {
     }
 
     func testEmptyAudioReturnsEmpty() async throws {
-        let result = try await audioProcessor.process(Data())
+        let capturedAudio = CapturedAudio(data: Data(), sampleRate: 44100)
+        let result = try await audioProcessor.process(capturedAudio)
         XCTAssertTrue(result.isEmpty)
     }
 
@@ -34,7 +35,8 @@ final class AudioProcessorTests: XCTestCase {
             }
         }
 
-        let result = try await audioProcessor.process(silentData)
+        let capturedAudio = CapturedAudio(data: silentData, sampleRate: 44100)
+        let result = try await audioProcessor.process(capturedAudio)
         XCTAssertTrue(result.isEmpty)
     }
 }

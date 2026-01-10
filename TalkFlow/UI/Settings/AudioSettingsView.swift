@@ -183,10 +183,25 @@ private struct AudioSettingsContent: View {
 
                     SettingsDivider()
 
+                    SettingsRow {
+                        Toggle(isOn: $manager.configuration.bypassAudioProcessing) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Bypass Audio Processing")
+                                    .foregroundColor(DesignConstants.primaryText)
+                                Text("Disable noise gate and silence detection. Use for debugging or if transcriptions are being incorrectly filtered.")
+                                    .font(.caption)
+                                    .foregroundColor(DesignConstants.secondaryText)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                    }
+
+                    SettingsDivider()
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Silence Threshold")
-                                .foregroundColor(DesignConstants.primaryText)
+                                .foregroundColor(manager.configuration.bypassAudioProcessing ? DesignConstants.tertiaryText : DesignConstants.primaryText)
                             Spacer()
                             Text("\(Int(manager.configuration.silenceThresholdDb)) dB")
                                 .foregroundColor(DesignConstants.secondaryText)
@@ -197,6 +212,7 @@ private struct AudioSettingsContent: View {
                             in: -60...(-20),
                             step: 1
                         )
+                        .disabled(manager.configuration.bypassAudioProcessing)
 
                         Text("Lower values detect quieter speech. Default: -40 dB")
                             .font(.caption)
@@ -204,13 +220,14 @@ private struct AudioSettingsContent: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
+                    .opacity(manager.configuration.bypassAudioProcessing ? 0.5 : 1.0)
 
                     SettingsDivider()
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Noise Gate Threshold")
-                                .foregroundColor(DesignConstants.primaryText)
+                                .foregroundColor(manager.configuration.bypassAudioProcessing ? DesignConstants.tertiaryText : DesignConstants.primaryText)
                             Spacer()
                             Text("\(Int(manager.configuration.noiseGateThresholdDb)) dB")
                                 .foregroundColor(DesignConstants.secondaryText)
@@ -221,6 +238,7 @@ private struct AudioSettingsContent: View {
                             in: -70...(-30),
                             step: 1
                         )
+                        .disabled(manager.configuration.bypassAudioProcessing)
 
                         Text("Reduces constant low-level background noise. Default: -50 dB")
                             .font(.caption)
@@ -228,6 +246,7 @@ private struct AudioSettingsContent: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
+                    .opacity(manager.configuration.bypassAudioProcessing ? 0.5 : 1.0)
                 }
             }
 
